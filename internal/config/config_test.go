@@ -7,13 +7,17 @@ import (
 	"testing"
 )
 
-func TestSaveLoadResolve(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "c.yaml")
-	t.Setenv("IBKR_CONFIG", p)
-	for _, k := range []string{"IBKR_URL", "IBKR_USER", "IBKR_PASS"} {
+func clearEnv(t *testing.T) {
+	for _, k := range []string{"IBKR_URL", "IBKR_PORT", "IBKR_ACCOUNT", "IBKR_USER", "IBKR_PASS_CMD", "IBKR_GATEWAY_DIR", "IBKR_JAVA"} {
 		t.Setenv(k, "")
 	}
-	if err := Save(&Config{URL: "http://a/", Username: "u", PasswordCmd: "echo secret"}); err != nil {
+}
+
+func TestSaveLoadPassword(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "c.yaml")
+	t.Setenv("IBKR_CONFIG", p)
+	clearEnv(t)
+	if err := Save(&Config{Username: "u", PasswordCmd: "echo secret"}); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := os.Stat(p)
@@ -24,23 +28,51 @@ func TestSaveLoadResolve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Resolve(); err != nil || c.Password != "secret" || c.URL != "http://a" {
-		t.Fatalf("%v %+v", err, c)
+	if c.Port != DefaultPort || c.URL != "https://localhost:5001" {
+		t.Fatalf("defaults %+v", c)
 	}
-	t.Setenv("IBKR_URL", "http://b")
-	t.Setenv("IBKR_USER", "v")
-	t.Setenv("IBKR_PASS", "pw")
-	c, _ = Load()
-	_ = c.Resolve()
-	if c.URL != "http://b" || c.Username != "v" || c.Password != "pw" {
-		t.Fatalf("env override %+v", c)
+	if !strings.HasSuffix(c.GatewayDir, filepath.Join("gateway", "clientportal.gw")) {
+		t.Fatalf("gatewaydir %s", c.GatewayDir)
+	}
+	pw, err := c.Password()
+	if err != nil || pw != "secret" {
+		t.Fatalf("password %q %v", pw, err)
 	}
 }
 
-func TestPathAndBadYAML(t *testing.T) {
+func TestPasswordEmpty(t *testing.T) {
+	c := &Config{}
+	if pw, err := c.Password(); err != nil || pw != "" {
+		t.Fatalf("want empty, got %q %v", pw, err)
+	}
+}
+
+func TestEnvOverride(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "c.yaml")
+	t.Setenv("IBKR_CONFIG", p)
+	clearEnv(t)
+	t.Setenv("IBKR_URL", "https://host:9000/")
+	t.Setenv("IBKR_PORT", "9000")
+	t.Setenv("IBKR_ACCOUNT", "U1")
+	t.Setenv("IBKR_USER", "bob")
+	t.Setenv("IBKR_PASS_CMD", "echo x")
+	t.Setenv("IBKR_JAVA", "/j/java")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.URL != "https://host:9000" || c.Port != 9000 || c.Account != "U1" || c.Username != "bob" || c.JavaBin != "/j/java" {
+		t.Fatalf("%+v", c)
+	}
+}
+
+func TestPathsAndBadYAML(t *testing.T) {
 	t.Setenv("IBKR_CONFIG", "")
 	if !strings.HasSuffix(Path(), filepath.Join("ibkrctl", "config.yaml")) {
 		t.Fatal(Path())
+	}
+	if !strings.HasSuffix(GatewayHome(), filepath.Join("ibkrctl", "gateway")) {
+		t.Fatal(GatewayHome())
 	}
 	p := filepath.Join(t.TempDir(), "c.yaml")
 	t.Setenv("IBKR_CONFIG", p)

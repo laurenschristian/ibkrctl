@@ -20,6 +20,21 @@ var (
 	client   *ibkr.Client
 )
 
+// noSetup lists commands that must run without loading config/client wiring.
+func noSetup(cmd *cobra.Command) bool {
+	switch cmd.Name() {
+	case "completion", "help", "__complete", "__completeNoDesc":
+		return true
+	}
+	if p := cmd.Parent(); p != nil {
+		switch p.Name() {
+		case "completion", "help":
+			return true
+		}
+	}
+	return false
+}
+
 func Root() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "ibkrctl",
@@ -28,6 +43,9 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if noSetup(cmd) {
+				return nil
+			}
 			var err error
 			if cfg, err = config.Load(); err != nil {
 				return err
@@ -37,7 +55,25 @@ func Root() *cobra.Command {
 		},
 	}
 	root.PersistentFlags().BoolVar(&flagJSON, "json", false, "print raw JSON")
-	root.AddCommand(doctorCmd(), mcpCmd())
+	root.AddCommand(
+		initCmd(),
+		gatewayCmd(),
+		loginCmd(),
+		logoutCmd(),
+		statusCmd(),
+		tickleCmd(),
+		accountCmd(),
+		positionsCmd(),
+		pnlCmd(),
+		ordersCmd(),
+		quoteCmd(),
+		chainCmd(),
+		placeCmd(),
+		cancelCmd(),
+		rawCmd(),
+		doctorCmd(),
+		mcpCmd(),
+	)
 	return root
 }
 
@@ -50,14 +86,44 @@ func emit(v any) error {
 func doctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
-		Short: "Check config and reachability",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			state := map[string]any{"config": config.Path(), "url": client.BaseURL}
+		Short: "Check config, gateway install, and reachability",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			gw := newGateway()
+			state := map[string]any{
+				"config":          config.Path(),
+				"url":             client.BaseURL,
+				"gateway_dir":     cfg.GatewayDir,
+				"gateway_present": gw.Installed(),
+				"java":            cfg.JavaBin,
+				"agent_loaded":    ibkr.AgentLoaded(ibkr.GatewayLabel),
+			}
+			if st, err := client.AuthStatus(cmd.Context()); err == nil {
+				state["authenticated"] = st.Authenticated
+			} else {
+				state["authenticated"] = false
+				state["auth_error"] = err.Error()
+			}
 			if flagJSON {
 				return emit(state)
 			}
-			fmt.Printf("config  %s\nurl     %s\n", config.Path(), client.BaseURL)
+			fmt.Printf("config          %s\n", config.Path())
+			fmt.Printf("url             %s\n", client.BaseURL)
+			fmt.Printf("gateway dir     %s\n", cfg.GatewayDir)
+			fmt.Printf("gateway present %v\n", gw.Installed())
+			fmt.Printf("java            %s\n", orNone(cfg.JavaBin))
+			fmt.Printf("agent loaded    %v\n", ibkr.AgentLoaded(ibkr.GatewayLabel))
+			fmt.Printf("authenticated   %v\n", state["authenticated"])
+			if e, ok := state["auth_error"]; ok {
+				fmt.Printf("auth error      %s\n", e)
+			}
 			return nil
 		},
 	}
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(unset)"
+	}
+	return s
 }

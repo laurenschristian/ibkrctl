@@ -3,36 +3,56 @@ package config
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
+// Config holds ibkrctl settings. IBKR login is browser-based (no password is
+// ever stored); these are the local Client Portal Gateway details only.
 type Config struct {
-	URL      string `yaml:"url,omitempty"`
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	// PasswordCmd is run and its stdout used as the secret, e.g. a keychain or `op read`.
+	URL        string `yaml:"url,omitempty"`         // gateway base, e.g. https://localhost:5001
+	Port       int    `yaml:"port,omitempty"`        // gateway listen port
+	Account    string `yaml:"account,omitempty"`     // default account id for positions/pnl/orders
+	GatewayDir string `yaml:"gateway_dir,omitempty"` // path to an installed clientportal.gw
+	JavaBin    string `yaml:"java_bin,omitempty"`    // java executable used to run the gateway
+	// Login automation (optional). The password itself is never stored here;
+	// PasswordCmd prints it (e.g. a macOS Keychain lookup).
+	Username    string `yaml:"username,omitempty"`
 	PasswordCmd string `yaml:"password_cmd,omitempty"`
+	TwoFA       string `yaml:"twofa,omitempty"` // ibkey | card | none
+}
+
+const (
+	DefaultPort = 5001
+)
+
+func supportDir() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return filepath.Join(dir, "ibkrctl")
 }
 
 func Path() string {
 	if p := os.Getenv("IBKR_CONFIG"); p != "" {
 		return p
 	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = filepath.Join(os.Getenv("HOME"), ".config")
-	}
-	return filepath.Join(dir, "ibkrctl", "config.yaml")
+	return filepath.Join(supportDir(), "config.yaml")
+}
+
+// GatewayHome is where `gateway install` places its self-contained copy.
+func GatewayHome() string {
+	return filepath.Join(supportDir(), "gateway")
 }
 
 func Load() (*Config, error) {
-	c := &Config{}
+	c := &Config{Port: DefaultPort}
 	if b, err := os.ReadFile(Path()); err == nil {
 		if err := yaml.Unmarshal(b, c); err != nil {
 			return nil, err
@@ -41,26 +61,37 @@ func Load() (*Config, error) {
 	if v := os.Getenv("IBKR_URL"); v != "" {
 		c.URL = v
 	}
+	if v := os.Getenv("IBKR_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.Port = n
+		}
+	}
+	if v := os.Getenv("IBKR_ACCOUNT"); v != "" {
+		c.Account = v
+	}
 	if v := os.Getenv("IBKR_USER"); v != "" {
 		c.Username = v
 	}
-	if v := os.Getenv("IBKR_PASS"); v != "" {
-		c.Password = v
+	if v := os.Getenv("IBKR_PASS_CMD"); v != "" {
+		c.PasswordCmd = v
 	}
-	return c, nil
-}
-
-// Resolve fills Password from PasswordCmd when needed.
-func (c *Config) Resolve() error {
-	if c.Password == "" && c.PasswordCmd != "" {
-		out, err := exec.CommandContext(context.Background(), "sh", "-c", c.PasswordCmd).Output()
-		if err != nil {
-			return errors.New("password_cmd failed: " + err.Error())
-		}
-		c.Password = strings.TrimSpace(string(out))
+	if v := os.Getenv("IBKR_GATEWAY_DIR"); v != "" {
+		c.GatewayDir = v
+	}
+	if v := os.Getenv("IBKR_JAVA"); v != "" {
+		c.JavaBin = v
+	}
+	if c.Port == 0 {
+		c.Port = DefaultPort
+	}
+	if c.URL == "" {
+		c.URL = "https://localhost:" + strconv.Itoa(c.Port)
+	}
+	if c.GatewayDir == "" {
+		c.GatewayDir = filepath.Join(GatewayHome(), "clientportal.gw")
 	}
 	c.URL = strings.TrimRight(c.URL, "/")
-	return nil
+	return c, nil
 }
 
 func Save(c *Config) error {
@@ -73,4 +104,20 @@ func Save(c *Config) error {
 		return err
 	}
 	return os.WriteFile(p, b, 0o600)
+}
+
+// Password runs PasswordCmd and returns its trimmed stdout. Empty if unset.
+func (c *Config) Password() (string, error) {
+	if c.PasswordCmd == "" {
+		return "", nil
+	}
+	out, err := execCommand(c.PasswordCmd)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func execCommand(sh string) ([]byte, error) {
+	return exec.CommandContext(context.Background(), "sh", "-c", sh).Output()
 }

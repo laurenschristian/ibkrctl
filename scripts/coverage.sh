@@ -4,7 +4,7 @@
 # pre-push hook and CI.
 set -e
 
-MIN_COVER=${MIN_COVER:-0}  # TODO: raise to 80 as commands land
+MIN_COVER=${MIN_COVER:-50}  # browser (chromedp) + launchd + system discovery are integration-only
 if ! go test -race -shuffle=on -coverprofile=coverage.out ./...; then
 	echo "coverage: tests failed while collecting profile" >&2
 	exit 1
