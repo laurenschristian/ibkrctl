@@ -1,0 +1,31 @@
+# Strict-but-practical lint config shared across the laurenschristian Go CLIs.
+# Defaults (errcheck, govet, ineffassign, staticcheck, unused) plus cheap hygiene
+# linters. Wired into pre-commit, pre-push (make lint) and CI.
+version: "2"
+run:
+  timeout: 5m
+linters:
+  enable:
+    - misspell
+    - unconvert
+    - errorlint
+    - bodyclose
+    - noctx
+    - usestdlibvars
+    - copyloopvar
+    - durationcheck
+    - makezero
+    - predeclared
+    - nilnil
+    - reassign
+    - wastedassign
+    - gocheckcompilerdirectives
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [unused, errorlint]
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable: [gofmt]

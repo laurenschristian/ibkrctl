@@ -1,0 +1,6 @@
+#!/bin/sh
+# Pre-push gate: tests with race detector and the coverage floor. Install with: make hooks
+set -e
+echo "pre-push: tests + coverage floor"
+make cover
+echo "pre-push: ok"

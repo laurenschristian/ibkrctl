@@ -1,0 +1,33 @@
+#!/bin/sh
+# Fast pre-commit gate: gofmt, no em/en-dashes, secrets, build, lint. Install with: make hooks
+set -e
+
+echo "pre-commit: gofmt"
+unformatted=$(gofmt -l . 2>/dev/null || true)
+if [ -n "$unformatted" ]; then
+	echo "  run gofmt -w on:" >&2
+	echo "$unformatted" | sed 's/^/    /' >&2
+	exit 1
+fi
+
+dashes=$(grep -rlP '[\x{2014}\x{2013}]' --include='*.go' --include='*.md' --include='*.yml' --include='*.yaml' . 2>/dev/null || true)
+if [ -n "$dashes" ]; then
+	echo "  em/en-dashes found (use : , ; ( or two sentences):" >&2
+	echo "$dashes" | sed 's/^/    /' >&2
+	exit 1
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+	echo "pre-commit: gitleaks (staged)"
+	gitleaks protect --staged --no-banner --redact
+else
+	echo "pre-commit: gitleaks not installed, skipping (brew install gitleaks)"
+fi
+
+echo "pre-commit: go build"
+go build ./...
+
+echo "pre-commit: lint"
+make lint
+
+echo "pre-commit: ok"

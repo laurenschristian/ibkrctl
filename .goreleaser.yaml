@@ -1,0 +1,52 @@
+version: 2
+project_name: ibkrctl
+before:
+  hooks:
+    - go mod tidy
+    - go run ./tools/gendocs
+    - sh scripts/completions.sh
+builds:
+  - env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.version={{.Version}}"]
+universal_binaries:
+  - replace: true
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - man/*
+      - completions/*
+checksum:
+  name_template: checksums.txt
+changelog:
+  use: github
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.*$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.*$'
+      order: 1
+    - title: Others
+      order: 999
+homebrew_casks:
+  - name: ibkrctl
+    repository:
+      owner: laurenschristian
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/laurenschristian/ibkrctl"
+    description: "CLI and MCP server for eero mesh networks"
+    license: "MIT"
+    manpages:
+      - "man/ibkrctl.1"
+    completions:
+      bash: "completions/ibkrctl.bash"
+      zsh: "completions/_ibkrctl"
+      fish: "completions/ibkrctl.fish"
