@@ -42,7 +42,7 @@ homebrew_casks:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/laurenschristian/ibkrctl"
-    description: "CLI and MCP server for eero mesh networks"
+    description: "CLI and MCP server for Interactive Brokers"
     license: "MIT"
     manpages:
       - "man/ibkrctl.1"
