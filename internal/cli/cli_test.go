@@ -217,3 +217,20 @@ func TestMarketsCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderToolsCommands(t *testing.T) {
+	withGateway(t)
+	for _, c := range [][]string{
+		{"rules", "265598"}, {"position", "265598"},
+		{"place", "265598", "--side", "BUY", "--qty", "1", "--type", "LMT", "--price", "100", "--preview"},
+		{"modify", "888"}, // dry run
+	} {
+		if out, err := run(t, c...); err != nil {
+			t.Fatalf("%v -> %v\n%s", c, err, out)
+		}
+	}
+	out, err := run(t, "modify", "888", "--price", "101", "--confirm")
+	if err != nil || !strings.Contains(out, "order_id") {
+		t.Fatalf("modify confirm %v\n%s", err, out)
+	}
+}

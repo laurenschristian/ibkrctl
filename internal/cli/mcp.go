@@ -88,6 +88,25 @@ type symbolsArg struct {
 	Symbols []string `json:"symbols"`
 }
 
+type rulesArg struct {
+	Conid string `json:"conid"`
+	Sell  bool   `json:"sell,omitempty"`
+}
+
+type positionArg struct {
+	Account string `json:"account,omitempty"`
+	Conid   string `json:"conid"`
+}
+
+type previewArg struct {
+	Account   string  `json:"account,omitempty"`
+	Conid     int     `json:"conid"`
+	Side      string  `json:"side"`
+	Quantity  float64 `json:"quantity"`
+	OrderType string  `json:"orderType,omitempty"`
+	Price     float64 `json:"price,omitempty"`
+}
+
 type rawArg struct {
 	Method string `json:"method,omitempty"`
 	Path   string `json:"path"`
@@ -235,6 +254,34 @@ func mcpServer() *mcp.Server {
 				return nil, rawOut{}, err
 			}
 			return wrap(client.Alerts(ctx, acct))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_rules", Description: "Order rules for a contract: valid order types, size/price increments."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in rulesArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.ContractRules(ctx, in.Conid, !in.Sell))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_position", Description: "Position for a single contract in an account."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in positionArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(client.Position(ctx, acct, in.Conid))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_preview", Description: "Preview an order (whatif): commission, margin impact, post-trade position. Does NOT submit."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in previewArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			ot := in.OrderType
+			if ot == "" {
+				ot = "MKT"
+			}
+			order := map[string]any{"conid": in.Conid, "side": in.Side, "quantity": in.Quantity, "orderType": ot, "tif": "DAY"}
+			if in.Price > 0 {
+				order["price"] = in.Price
+			}
+			return wrap(client.WhatIf(ctx, acct, order))
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_raw", Description: "Call any /v1/api path (GET unless method is set). Read-only use recommended."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in rawArg) (*mcp.CallToolResult, rawOut, error) {

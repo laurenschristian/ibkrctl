@@ -31,8 +31,12 @@ ibkrctl fx EUR                     # spot exchange rate vs USD
 ibkrctl futures ES NQ CL           # futures contracts by underlying
 ibkrctl alerts                     # price alerts
 ibkrctl transactions 208813719 --days 30
+ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --preview   # margin/commission, no submit
 ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --confirm
+ibkrctl modify <orderId> --price 195 --confirm
 ibkrctl cancel <orderId>
+ibkrctl rules 265598               # valid order types, increments
+ibkrctl position 265598            # single-contract position
 ibkrctl raw iserver/accounts       # any /v1/api path
 ibkrctl mcp                        # MCP server over stdio
 ```
@@ -91,7 +95,7 @@ ibkrctl gateway uninstall --yes
 
 ## MCP
 
-`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_watchlists`, `ibkr_watchlist`, `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
+`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_watchlists`, `ibkr_watchlist`, `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
 
 ```console
 claude mcp add ibkr -- ibkrctl mcp

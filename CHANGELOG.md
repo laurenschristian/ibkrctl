@@ -26,4 +26,15 @@ versions follow [Semantic Versioning](https://semver.org/).
   from every command and MCP tool. The agent only ever sees `account-1`.
 - More markets and data: `watchlists` (+ get/create/delete), `news`,
   `notifications`, `fx` (exchange rates), `futures`, `alerts`, and
-  `transactions`, with matching MCP read tools. 25 MCP tools total.
+  `transactions`, with matching MCP read tools.
+- Order decision tools: `place --preview` (whatif: commission, margin impact,
+  post-trade position without submitting), `rules` (valid order types and
+  increments), `position` (single contract), and `modify` (change a live
+  order). 28 MCP tools total.
+- `gateway install` reuses an existing install (no bundled source needed once
+  copied) and prefers the configured JRE.
+
+### Notes
+- Alert creation is not available (the gateway returns 403); alerts are
+  read-only (list/get/delete). `pa/summary` returns 401. Both reachable via
+  `raw` if that changes.

@@ -71,6 +71,10 @@ func New() *Server {
 			write(w, map[string]any{"USD": map[string]any{"cashbalance": 3771.98, "currency": "USD", "acctcode": "U1234567"}})
 		case strings.HasSuffix(r.URL.Path, "/allocation"):
 			write(w, map[string]any{"assetClass": map[string]any{"long": map[string]any{"STK": 93047.1, "CASH": 3771.98}}})
+		case strings.HasSuffix(r.URL.Path, "/meta"):
+			write(w, map[string]any{"accountId": "U1234567", "accountTitle": "Jane Public", "type": "INDIVIDUAL"})
+		case strings.Contains(r.URL.Path, "/position/"):
+			write(w, []any{map[string]any{"acctId": "U1234567", "conid": 265598, "contractDesc": "AAPL", "position": 100.0}})
 		default:
 			write(w, []any{map[string]any{"acctId": "U1234567", "conid": 265598, "contractDesc": "AAPL", "position": 100.0, "mktValue": 19500.0}})
 		}
@@ -79,6 +83,10 @@ func New() *Server {
 	mux.HandleFunc(base+"iserver/account/", func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(r.URL.Path, base+"iserver/account/")
 		switch {
+		case strings.HasSuffix(p, "/orders/whatif") && r.Method == http.MethodPost:
+			write(w, map[string]any{"amount": map[string]any{"commission": "1.00 USD", "total": "101.00 USD"}})
+		case strings.Contains(p, "/order/") && r.Method == http.MethodPost:
+			write(w, []any{map[string]any{"order_id": "888", "order_status": "Submitted"}})
 		case strings.HasSuffix(p, "/orders") && r.Method == http.MethodPost:
 			var body struct {
 				Orders []map[string]any `json:"orders"`
@@ -154,6 +162,12 @@ func New() *Server {
 	})
 	mux.HandleFunc(base+"pa/transactions", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, map[string]any{"transactions": []any{map[string]any{"cur": "USD", "amt": -100.0}}})
+	})
+	mux.HandleFunc(base+"iserver/contract/rules", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"orderTypes": []any{"limit", "market"}, "canTradeAcctIds": []any{"U1234567"}})
+	})
+	mux.HandleFunc(base+"iserver/contract/", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"con_id": 265598, "company_name": "APPLE INC", "orderTypes": []any{"limit"}})
 	})
 	s.Server = httptest.NewServer(mux)
 	return s

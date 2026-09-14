@@ -204,3 +204,27 @@ func TestMarketsEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOrderToolsEndpoints(t *testing.T) {
+	c, _ := newClient(t)
+	ctx := context.Background()
+	order := map[string]any{"conid": 265598, "side": "BUY", "quantity": 1.0, "orderType": "LMT", "price": 100.0}
+	if _, err := c.WhatIf(ctx, "U1234567", order); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ContractRules(ctx, "265598", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Position(ctx, "U1234567", "265598"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.AccountMeta(ctx, "U1234567"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.InfoAndRules(ctx, "265598", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ModifyOrder(ctx, "U1234567", "888", map[string]any{"price": 101.0}); err != nil {
+		t.Fatal(err)
+	}
+}

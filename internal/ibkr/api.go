@@ -271,3 +271,38 @@ func (c *Client) MarketDataUnsubscribe(ctx context.Context, conid string) error 
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// WhatIf previews an order: commission, margin impact, and post-trade position,
+// without submitting it.
+func (c *Client) WhatIf(ctx context.Context, accountID string, order map[string]any) (any, error) {
+	body := map[string]any{"orders": []map[string]any{order}}
+	return c.Raw(ctx, "POST", "iserver/account/"+url.PathEscape(accountID)+"/orders/whatif", body)
+}
+
+// ContractRules returns the order rules for a contract (valid order types, size
+// and price increments, eligibility).
+func (c *Client) ContractRules(ctx context.Context, conid string, isBuy bool) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/contract/rules", map[string]any{"conid": conid, "isBuy": isBuy})
+}
+
+// Position returns the position for a single contract in an account.
+func (c *Client) Position(ctx context.Context, accountID, conid string) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/"+url.PathEscape(accountID)+"/position/"+url.PathEscape(conid), nil)
+}
+
+// AccountMeta returns account metadata (type, trading permissions, clearing).
+func (c *Client) AccountMeta(ctx context.Context, accountID string) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/"+url.PathEscape(accountID)+"/meta", nil)
+}
+
+// InfoAndRules returns contract detail plus its order rules in one call.
+func (c *Client) InfoAndRules(ctx context.Context, conid string, isBuy bool) (any, error) {
+	q := url.Values{}
+	q.Set("isBuy", strconv.FormatBool(isBuy))
+	return c.Raw(ctx, "GET", "iserver/contract/"+url.PathEscape(conid)+"/info-and-rules?"+q.Encode(), nil)
+}
+
+// ModifyOrder changes a live order.
+func (c *Client) ModifyOrder(ctx context.Context, accountID, orderID string, order map[string]any) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/account/"+url.PathEscape(accountID)+"/order/"+url.PathEscape(orderID), order)
+}

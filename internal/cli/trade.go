@@ -147,7 +147,7 @@ func placeCmd() *cobra.Command {
 	var account, side, orderType, tif string
 	var qty float64
 	var price float64
-	var confirm bool
+	var confirm, preview bool
 	c := &cobra.Command{
 		Use:   "place <conid>",
 		Short: "Place an order (requires --confirm to actually submit)",
@@ -179,8 +179,15 @@ func placeCmd() *cobra.Command {
 				}
 				order["price"] = price
 			}
+			if preview {
+				data, err := client.WhatIf(ctx, acct, order)
+				if err != nil {
+					return err
+				}
+				return emit(data)
+			}
 			if !confirm {
-				fmt.Printf("DRY RUN (pass --confirm to submit):\n")
+				fmt.Printf("DRY RUN (pass --preview for margin/commission, --confirm to submit):\n")
 				return emit(map[string]any{"account": acct, "order": order})
 			}
 			data, err := client.PlaceOrder(ctx, acct, order)
@@ -201,6 +208,7 @@ func placeCmd() *cobra.Command {
 	c.Flags().StringVar(&orderType, "type", "MKT", "order type: MKT or LMT")
 	c.Flags().Float64Var(&price, "price", 0, "limit price (for LMT)")
 	c.Flags().StringVar(&tif, "tif", "DAY", "time in force: DAY, GTC, IOC")
+	c.Flags().BoolVar(&preview, "preview", false, "preview margin/commission/impact (whatif) without submitting")
 	c.Flags().BoolVar(&confirm, "confirm", false, "actually submit the order")
 	return c
 }
@@ -282,4 +290,99 @@ func rawBody(s string) any {
 		return v
 	}
 	return s
+}
+
+func rulesCmd() *cobra.Command {
+	var sell bool
+	c := &cobra.Command{
+		Use:   "rules <conid>",
+		Short: "Order rules for a contract (valid order types, increments)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := client.ContractRules(cmd.Context(), args[0], !sell)
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	c.Flags().BoolVar(&sell, "sell", false, "rules for a sell (default: buy)")
+	return c
+}
+
+func positionCmd() *cobra.Command {
+	var account string
+	c := &cobra.Command{
+		Use:   "position <conid>",
+		Short: "Position for a single contract",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			acct, err := resolveAccount(cmd.Context(), account)
+			if err != nil {
+				return err
+			}
+			data, err := client.Position(cmd.Context(), acct, args[0])
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	c.Flags().StringVar(&account, "account", "", "account alias or id")
+	return c
+}
+
+func modifyCmd() *cobra.Command {
+	var account, side, orderType, tif string
+	var qty, price float64
+	var confirm bool
+	c := &cobra.Command{
+		Use:   "modify <orderId>",
+		Short: "Modify a live order (requires --confirm)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			acct, err := resolveAccount(ctx, account)
+			if err != nil {
+				return err
+			}
+			order := map[string]any{}
+			if side != "" {
+				order["side"] = strings.ToUpper(side)
+			}
+			if qty > 0 {
+				order["quantity"] = qty
+			}
+			if orderType != "" {
+				order["orderType"] = strings.ToUpper(orderType)
+			}
+			if price > 0 {
+				order["price"] = price
+			}
+			if tif != "" {
+				order["tif"] = strings.ToUpper(tif)
+			}
+			if !confirm {
+				fmt.Printf("DRY RUN (pass --confirm to submit):\n")
+				return emit(map[string]any{"account": acct, "orderId": args[0], "changes": order})
+			}
+			data, err := client.ModifyOrder(ctx, acct, args[0], order)
+			if err != nil {
+				return err
+			}
+			data, err = answerReplies(ctx, data)
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	c.Flags().StringVar(&account, "account", "", "account alias or id")
+	c.Flags().StringVar(&side, "side", "", "BUY or SELL")
+	c.Flags().Float64Var(&qty, "qty", 0, "new quantity")
+	c.Flags().StringVar(&orderType, "type", "", "new order type")
+	c.Flags().Float64Var(&price, "price", 0, "new limit price")
+	c.Flags().StringVar(&tif, "tif", "", "new time in force")
+	c.Flags().BoolVar(&confirm, "confirm", false, "actually submit the modification")
+	return c
 }
