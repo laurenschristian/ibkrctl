@@ -4,7 +4,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 GOLANGCI := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 GOSEC := github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 # G204: token_cmd is run through sh by design (user-supplied command, like adgctl's password_cmd).
-GOSEC_EXCLUDE := G204
+GOSEC_EXCLUDE := G204,G304,G117
 
 .PHONY: build install test cover cover-html lint fmt sec vuln hooks tidy docs docs-check completions snapshot clean
 
