@@ -52,11 +52,11 @@ func doctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Check config and reachability",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			state := map[string]any{"config": config.Path(), "url": cfg.URL}
+			state := map[string]any{"config": config.Path(), "url": client.BaseURL}
 			if flagJSON {
 				return emit(state)
 			}
-			fmt.Printf("config  %s\nurl     %s\n", config.Path(), cfg.URL)
+			fmt.Printf("config  %s\nurl     %s\n", config.Path(), client.BaseURL)
 			return nil
 		},
 	}
