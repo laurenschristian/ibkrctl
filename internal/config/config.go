@@ -32,6 +32,15 @@ type Config struct {
 	Redact   bool           `yaml:"redact,omitempty"`
 	// Presets are reusable order shapes, replayed with `place --preset <name>`.
 	Presets []Preset `yaml:"presets,omitempty"`
+	// Flex Web Service (token statements, no gateway). FlexTokenCmd prints the
+	// token; FlexQueries maps names to Flex query ids.
+	FlexTokenCmd string      `yaml:"flex_token_cmd,omitempty"`
+	FlexQueries  []FlexQuery `yaml:"flex_queries,omitempty"`
+}
+
+type FlexQuery struct {
+	Name string `yaml:"name"`
+	ID   string `yaml:"id"`
 }
 
 // Preset is a saved order shape. TakeProfitPct/StopLossPct, when set, turn a
@@ -180,6 +189,28 @@ func Save(c *Config) error {
 		return err
 	}
 	return os.WriteFile(p, b, 0o600)
+}
+
+// FlexToken runs FlexTokenCmd and returns the trimmed token (empty if unset).
+func (c *Config) FlexToken() (string, error) {
+	if c.FlexTokenCmd == "" {
+		return "", nil
+	}
+	out, err := execCommand(c.FlexTokenCmd)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// FlexQueryByName resolves a saved query name (or returns the input as an id).
+func (c *Config) FlexQueryByName(nameOrID string) string {
+	for _, q := range c.FlexQueries {
+		if q.Name == nameOrID {
+			return q.ID
+		}
+	}
+	return nameOrID
 }
 
 // PresetByName returns a saved preset, or false.

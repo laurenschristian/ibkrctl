@@ -308,3 +308,147 @@ func renderWhatIf(v any) (string, bool) {
 	}
 	return out, true
 }
+
+// ---- trades ----
+
+func renderTrades(v any) (string, bool) {
+	rows, ok := asList(v)
+	if !ok {
+		return "", false
+	}
+	if len(rows) == 0 {
+		return "no trades\n", true
+	}
+	b, w := newTab()
+	fmt.Fprintln(w, "TIME\tSYMBOL\tSIDE\tQTY\tPRICE\tAMOUNT")
+	for _, r := range rows {
+		m, ok := asMap(r)
+		if !ok {
+			return "", false
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			str(pick(m, "trade_time", "trade_time_r", "execution_id")),
+			str(pick(m, "symbol", "contract_description_1")),
+			str(pick(m, "side")),
+			str(pick(m, "size")),
+			str(pick(m, "price")),
+			str(pick(m, "net_amount", "order_ref")))
+	}
+	_ = w.Flush()
+	return b.String(), true
+}
+
+// ---- orders ----
+
+func renderOrders(v any) (string, bool) {
+	m, ok := asMap(v)
+	if !ok {
+		return "", false
+	}
+	rows, ok := asList(m["orders"])
+	if !ok {
+		return "", false
+	}
+	if len(rows) == 0 {
+		return "no orders\n", true
+	}
+	b, w := newTab()
+	fmt.Fprintln(w, "ID\tSYMBOL\tSIDE\tTYPE\tQTY\tPRICE\tSTATUS")
+	for _, r := range rows {
+		om, ok := asMap(r)
+		if !ok {
+			return "", false
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			str(pick(om, "orderId", "order_id")),
+			str(pick(om, "ticker", "symbol")),
+			str(pick(om, "side")),
+			str(pick(om, "orderType", "order_type")),
+			str(pick(om, "totalSize", "remainingQuantity", "sizeAndFills")),
+			str(pick(om, "price")),
+			str(pick(om, "status", "order_status")))
+	}
+	_ = w.Flush()
+	return b.String(), true
+}
+
+// ---- performance (NAV curve) ----
+
+var sparkRunes = []rune("▁▂▃▄▅▆▇█")
+
+func sparkline(vals []float64) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	lo, hi := vals[0], vals[0]
+	for _, v := range vals {
+		if v < lo {
+			lo = v
+		}
+		if v > hi {
+			hi = v
+		}
+	}
+	span := hi - lo
+	var b strings.Builder
+	for _, v := range vals {
+		idx := 0
+		if span > 0 {
+			idx = int((v - lo) / span * float64(len(sparkRunes)-1))
+		}
+		b.WriteRune(sparkRunes[idx])
+	}
+	return b.String()
+}
+
+func floatsFrom(v any) []float64 {
+	list, ok := asList(v)
+	if !ok {
+		return nil
+	}
+	out := make([]float64, 0, len(list))
+	for _, x := range list {
+		if f, ok := num(x); ok {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func renderPerformance(v any) (string, bool) {
+	m, ok := asMap(v)
+	if !ok {
+		return "", false
+	}
+	nav, ok := asMap(m["nav"])
+	if !ok {
+		return "", false
+	}
+	data, ok := asList(nav["data"])
+	if !ok || len(data) == 0 {
+		return "", false
+	}
+	var b strings.Builder
+	for _, d := range data {
+		dm, ok := asMap(d)
+		if !ok {
+			continue
+		}
+		vals := floatsFrom(dm["navValues"])
+		if len(vals) == 0 {
+			continue
+		}
+		first, last := vals[0], vals[len(vals)-1]
+		chg := 0.0
+		if first != 0 {
+			chg = (last - first) / first * 100
+		}
+		fmt.Fprintf(&b, "%s  %s -> %s  %+.2f%%  %s\n",
+			str(pick(dm, "id", "idType")),
+			trimFloat(round2(first)), trimFloat(round2(last)), chg, sparkline(vals))
+	}
+	if b.Len() == 0 {
+		return "", false
+	}
+	return b.String(), true
+}

@@ -313,3 +313,47 @@ func (c *Client) InfoAndRules(ctx context.Context, conid string, isBuy bool) (an
 func (c *Client) ModifyOrder(ctx context.Context, accountID, orderID string, order map[string]any) (any, error) {
 	return c.Raw(ctx, "POST", "iserver/account/"+url.PathEscape(accountID)+"/order/"+url.PathEscape(orderID), order)
 }
+
+// Reauthenticate revives the brokerage session after it drops, without a full
+// login, when the SSO cookie is still valid (no 2FA prompt).
+func (c *Client) Reauthenticate(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/reauthenticate", nil)
+}
+
+// SSOInit (re)initializes the brokerage session. compete=true takes over a
+// competing session on another device.
+func (c *Client) SSOInit(ctx context.Context, compete bool) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/auth/ssodh/init", map[string]any{"publish": true, "compete": compete})
+}
+
+// Validate checks the current SSO session (username, expiry).
+func (c *Client) Validate(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "sso/validate", nil)
+}
+
+// SuppressQuestions stops the gateway prompting for the given confirmation
+// message ids, so orders submit without a reply round-trip.
+func (c *Client) SuppressQuestions(ctx context.Context, messageIDs []string) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/questions/suppress", map[string]any{"messageIds": messageIDs})
+}
+
+// SuppressReset re-enables all order confirmation prompts.
+func (c *Client) SuppressReset(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/questions/suppress/reset", nil)
+}
+
+// PortfolioAccounts is the portfolio endpoint that must be called before other
+// portfolio calls in some session states.
+func (c *Client) PortfolioAccounts(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/accounts", nil)
+}
+
+// SwitchAccount sets the active trading account for order routing.
+func (c *Client) SwitchAccount(ctx context.Context, accountID string) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/account", map[string]any{"acctId": accountID})
+}
+
+// InvalidatePositions forces the gateway to refresh its positions cache.
+func (c *Client) InvalidatePositions(ctx context.Context, accountID string) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/"+url.PathEscape(accountID)+"/positions/invalidate", nil)
+}

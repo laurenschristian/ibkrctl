@@ -179,7 +179,37 @@ func notificationsCmd() *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&unread, "unread", false, "show unread count only")
+	c.AddCommand(notificationsReadCmd(), notificationsSettingsCmd())
 	return c
+}
+
+func notificationsReadCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "read <notificationId>",
+		Short: "Mark a notification read",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := client.MarkNotificationRead(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+}
+
+func notificationsSettingsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "settings",
+		Short: "Notification type settings and delivery options",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			data, err := client.NotificationSettings(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
 }
 
 func fxCmd() *cobra.Command {

@@ -191,7 +191,7 @@ func accountCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(accountAliasCmd(), accountAutonameCmd(), redactCmd())
+	c.AddCommand(accountAliasCmd(), accountAutonameCmd(), redactCmd(), accountSwitchCmd())
 	return c
 }
 
@@ -217,6 +217,21 @@ func accountAliasCmd() *cobra.Command {
 			}
 			fmt.Printf("aliased %s -> %s\n", args[1], args[1])
 			return nil
+		},
+	}
+}
+
+func accountSwitchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "switch <account>",
+		Short: "Set the active trading account (alias or id) for order routing",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := client.SwitchAccount(cmd.Context(), cfg.IDFor(args[0]))
+			if err != nil {
+				return err
+			}
+			return emit(data)
 		},
 	}
 }

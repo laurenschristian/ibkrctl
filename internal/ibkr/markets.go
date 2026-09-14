@@ -156,3 +156,32 @@ func (c *Client) CurrencyPairs(ctx context.Context, currency string) (any, error
 	q.Set("currency", currency)
 	return c.Raw(ctx, "GET", "iserver/currency/pairs?"+q.Encode(), nil)
 }
+
+// TradingSchedule returns trading hours/sessions for a symbol.
+func (c *Client) TradingSchedule(ctx context.Context, assetClass, symbol, exchange, exchangeFilter string) (any, error) {
+	q := url.Values{}
+	q.Set("assetClass", assetClass)
+	q.Set("symbol", symbol)
+	if exchange != "" {
+		q.Set("exchange", exchange)
+	}
+	if exchangeFilter != "" {
+		q.Set("exchangeFilter", exchangeFilter)
+	}
+	return c.Raw(ctx, "GET", "trsrv/secdef/schedule?"+q.Encode(), nil)
+}
+
+// MarkNotificationRead marks a single FYI notification read.
+func (c *Client) MarkNotificationRead(ctx context.Context, id string) (any, error) {
+	return c.Raw(ctx, "PUT", "fyi/notifications/"+url.PathEscape(id), nil)
+}
+
+// NotificationSettings returns FYI notification type settings.
+func (c *Client) NotificationSettings(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "fyi/settings", nil)
+}
+
+// DeliveryOptions returns configured notification delivery devices/emails.
+func (c *Client) DeliveryOptions(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "fyi/deliveryoptions", nil)
+}

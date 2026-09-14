@@ -79,7 +79,7 @@ func tradesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderTrades)
 		},
 	}
 }
@@ -227,7 +227,7 @@ func performanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderPerformance)
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account alias or id")

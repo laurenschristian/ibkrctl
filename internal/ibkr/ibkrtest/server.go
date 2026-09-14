@@ -209,6 +209,42 @@ func New() *Server {
 	mux.HandleFunc(base+"iserver/currency/pairs", func(w http.ResponseWriter, r *http.Request) {
 		write(w, map[string]any{r.URL.Query().Get("currency"): []any{map[string]any{"ccyPair": "EUR", "conid": 12087792, "symbol": "USD.EUR"}}})
 	})
+	mux.HandleFunc(base+"iserver/reauthenticate", func(w http.ResponseWriter, _ *http.Request) {
+		s.Authenticated = true
+		write(w, map[string]any{"message": "triggered", "authenticated": true})
+	})
+	mux.HandleFunc(base+"iserver/auth/ssodh/init", func(w http.ResponseWriter, _ *http.Request) {
+		s.Authenticated = true
+		write(w, map[string]any{"authenticated": true, "connected": true})
+	})
+	mux.HandleFunc(base+"sso/validate", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"USER_NAME": "tester", "RESULT": true, "expires": 600000})
+	})
+	mux.HandleFunc(base+"iserver/questions/suppress/reset", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"status": "reset"})
+	})
+	mux.HandleFunc(base+"iserver/questions/suppress", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"status": "submitted"})
+	})
+	mux.HandleFunc(base+"iserver/account", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			write(w, map[string]any{"set": true, "acctId": "U1234567"})
+			return
+		}
+		write(w, map[string]any{})
+	})
+	mux.HandleFunc(base+"trsrv/secdef/schedule", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, []any{map[string]any{"id": "AAPL", "tradingScheduleList": []any{}}})
+	})
+	mux.HandleFunc(base+"fyi/settings", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, []any{map[string]any{"A": "T", "FC": "1", "H": true}})
+	})
+	mux.HandleFunc(base+"fyi/deliveryoptions", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"M": "email", "E": []any{}})
+	})
+	mux.HandleFunc(base+"fyi/notifications/", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"V": "read"})
+	})
 	s.Server = httptest.NewServer(mux)
 	return s
 }

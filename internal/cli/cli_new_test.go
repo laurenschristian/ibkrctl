@@ -247,3 +247,107 @@ func TestMCPV3Tools(t *testing.T) {
 		t.Fatalf("call performance: %v %+v", err, res)
 	}
 }
+
+func TestSessionAndSuppress(t *testing.T) {
+	withGateway(t)
+	for _, c := range [][]string{
+		{"validate"}, {"schedule", "AAPL"}, {"schedule", "ES", "--asset", "FUT"},
+		{"orders", "suppress", "--common"}, {"orders", "suppress-reset"},
+		{"account", "switch", "U1234567"},
+		{"notifications", "read", "n1"}, {"notifications", "settings"},
+	} {
+		if out, err := run(t, c...); err != nil {
+			t.Fatalf("%v -> %v\n%s", c, err, out)
+		}
+	}
+	// suppress with no ids errors.
+	if _, err := run(t, "orders", "suppress"); err == nil {
+		t.Fatal("expected suppress error without ids")
+	}
+}
+
+func TestReconnect(t *testing.T) {
+	s := withGateway(t)
+	s.Authenticated = false // simulate a dropped session the SSO cookie can revive
+	out, err := run(t, "reconnect")
+	if err != nil || !strings.Contains(out, "reconnected") {
+		t.Fatalf("reconnect %v\n%s", err, out)
+	}
+}
+
+func TestTradesAndOrdersTables(t *testing.T) {
+	withGateway(t)
+	if out, err := run(t, "trades"); err != nil || !strings.Contains(out, "SYMBOL") {
+		t.Fatalf("trades table %v\n%s", err, out)
+	}
+	if out, err := run(t, "orders"); err != nil || !strings.Contains(out, "no orders") {
+		t.Fatalf("orders table %v\n%s", err, out)
+	}
+}
+
+func TestFlexQueriesAndRedact(t *testing.T) {
+	withGateway(t)
+	t.Setenv("IBKR_CONFIG", t.TempDir()+"/c.yaml")
+	if _, err := run(t, "flex", "query", "add", "activity", "998877"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "flex", "query")
+	if err != nil || !strings.Contains(out, "activity") || !strings.Contains(out, "998877") {
+		t.Fatalf("flex query list %v\n%s", err, out)
+	}
+	// Without a token, running a flex query is a clear error, not a panic.
+	if _, err := run(t, "flex", "activity"); err == nil {
+		t.Fatal("expected flex error without token")
+	}
+	if _, err := run(t, "flex", "query", "rm", "activity"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFlexRedaction(t *testing.T) {
+	// redactFlex hides account ids and name attributes when Redact is on.
+	withGateway(t)
+	t.Setenv("IBKR_CONFIG", t.TempDir()+"/c.yaml")
+	if _, err := run(t, "account", "alias", "U9999999", "acct-x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "account", "redact", "on"); err != nil {
+		t.Fatal(err)
+	}
+	xml := `<FlexStatement accountId="U9999999" name="Jane Public"><Trade symbol="AAPL"/></FlexStatement>`
+	got := redactFlex(xml)
+	if strings.Contains(got, "U9999999") || strings.Contains(got, "Jane Public") {
+		t.Fatalf("redaction failed: %s", got)
+	}
+	if !strings.Contains(got, "acct-x") {
+		t.Fatalf("alias missing: %s", got)
+	}
+}
+
+func TestMCPV4Tools(t *testing.T) {
+	withGateway(t)
+	cfgReload(t)
+	ctx := context.Background()
+	c1, c2 := mcp.NewInMemoryTransports()
+	srv := mcpServer()
+	go func() { _ = srv.Run(ctx, c1) }()
+	cl := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	sess, err := cl.Connect(ctx, c2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sess.Close() }()
+	tools, err := sess.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, tl := range tools.Tools {
+		names[tl.Name] = true
+	}
+	for _, want := range []string{"ibkr_reconnect", "ibkr_schedule", "ibkr_flex"} {
+		if !names[want] {
+			t.Fatalf("missing MCP tool %s", want)
+		}
+	}
+}

@@ -59,12 +59,54 @@ func ordersCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderOrders)
 		},
 	}
 	c.Flags().StringVar(&filter, "filter", "", "order status filter (comma-separated)")
-	c.AddCommand(ordersCancelAllCmd())
+	c.AddCommand(ordersCancelAllCmd(), ordersSuppressCmd(), ordersSuppressResetCmd())
 	return c
+}
+
+// commonSuppressIDs are the order-confirmation prompts safe to auto-suppress
+// (price cap, size, tick, etc.); IBKR message ids.
+var commonSuppressIDs = []string{"o10138", "o10151", "o10153", "o354", "o383", "o451", "o163"}
+
+func ordersSuppressCmd() *cobra.Command {
+	var common bool
+	c := &cobra.Command{
+		Use:   "suppress [messageId...]",
+		Short: "Suppress order-confirmation prompts (--common for the usual set)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ids := args
+			if common {
+				ids = append(ids, commonSuppressIDs...)
+			}
+			if len(ids) == 0 {
+				return errors.New("give message ids or --common")
+			}
+			data, err := client.SuppressQuestions(cmd.Context(), ids)
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	c.Flags().BoolVar(&common, "common", false, "suppress the usual order-confirm prompts")
+	return c
+}
+
+func ordersSuppressResetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "suppress-reset",
+		Short: "Re-enable all order-confirmation prompts",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			data, err := client.SuppressReset(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
 }
 
 func ordersCancelAllCmd() *cobra.Command {

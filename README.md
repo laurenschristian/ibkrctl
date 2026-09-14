@@ -12,11 +12,15 @@ ibkrctl init                       # store username + password (Keychain)
 ibkrctl gateway install            # install the gateway + JRE, load launchd agents
 ibkrctl login                      # auto-fill credentials, approve 2FA once
 ibkrctl status                     # authenticated / connected
+ibkrctl reconnect                  # revive a dropped session without a full 2FA login
+ibkrctl validate                   # SSO session: username, expiry
 ibkrctl account                    # brokerage accounts
 ibkrctl positions                  # positions for the default account
 ibkrctl pnl                        # live profit and loss
 ibkrctl orders                     # live orders; --filter Filled|Cancelled for history
 ibkrctl orders cancel-all --confirm
+ibkrctl orders suppress --common   # stop repeated order-confirm prompts
+ibkrctl account switch main        # set the active account for order routing
 ibkrctl summary                    # net liquidation, buying power
 ibkrctl ledger                     # cash by currency
 ibkrctl allocation                 # value by asset class / sector
@@ -30,6 +34,7 @@ ibkrctl history 265598 --period 1y --bar 1d
 ibkrctl fundamentals 265598        # market cap, P/E, EPS, yield
 ibkrctl profile 265598             # company overview + analyst forecast (Refinitiv)
 ibkrctl resolve AAPL MSFT NVDA     # batch symbol -> conid
+ibkrctl schedule AAPL              # trading hours / sessions
 ibkrctl chain AAPL --month JAN27   # option strikes
 ibkrctl scanner --type TOP_PERC_GAIN
 ibkrctl watchlists                 # your watchlists; `watchlists get <id> --quotes` merges live prices
@@ -50,6 +55,9 @@ ibkrctl modify <orderId> --price 195 --confirm
 ibkrctl cancel <orderId>
 ibkrctl rules 265598               # valid order types, increments
 ibkrctl position 265598            # single-contract position
+ibkrctl flex init                  # store a Flex Web Service token (Keychain)
+ibkrctl flex query add activity 998877
+ibkrctl flex activity              # trades, realized P&L, dividends, cash, tax lots (XML)
 ibkrctl raw iserver/accounts       # any /v1/api path
 ibkrctl mcp                        # MCP server over stdio
 ```
@@ -108,7 +116,7 @@ ibkrctl gateway uninstall --yes
 
 ## MCP
 
-`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_review`, `ibkr_performance`, `ibkr_profile`, `ibkr_resolve`, `ibkr_currency_pairs`, `ibkr_watchlists`, `ibkr_watchlist` (set `quotes=true` to merge live prices), `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
+`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_review`, `ibkr_performance`, `ibkr_profile`, `ibkr_resolve`, `ibkr_currency_pairs`, `ibkr_reconnect`, `ibkr_schedule`, `ibkr_flex`, `ibkr_watchlists`, `ibkr_watchlist` (set `quotes=true` to merge live prices), `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
 
 ```console
 claude mcp add ibkr -- ibkrctl mcp
@@ -130,7 +138,9 @@ make sec
 
 - The gateway proxies to `api.ibkr.com` and holds the session, so ibkrctl never sees your password after `login` fills it.
 - The stock gateway `conf.yaml` ships a malformed deny IP that 404s the login page; `gateway install` strips it automatically.
-- `positions`, `summary`, `ledger`, `allocation`, and `review` print human tables by default; add `--json` for the raw payload.
+- `positions`, `summary`, `ledger`, `allocation`, `review`, `trades`, `orders`, and `performance` (NAV sparkline) print human tables by default; add `--json` for the raw payload.
+- `flex` uses the IBKR Flex Web Service (a token, no gateway, no 2FA). Enable it and build a query in Client Portal: Settings > Account Settings > Flex Web Service. Statements come back as XML; account numbers and names are redacted when `redact` is on.
+- `reconnect` revives a brokerage session that dropped while the SSO cookie is still valid; if SSO fully expired, run `login` (2FA).
 - `history` caches bars on disk (12h for daily+, 10min intraday); pass `--refresh` to bypass.
 - Market-data fields are IBKR field ids (`31` last, `55` symbol, `84` bid, `86` ask, `87` volume). Pass `--fields` to `quote` to choose.
 

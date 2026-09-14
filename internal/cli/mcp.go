@@ -2,10 +2,17 @@ package cli
 
 import (
 	"context"
+	"errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+
+	"github.com/laurenschristian/ibkrctl/internal/ibkr"
 )
+
+var errFlexToken = errors.New("no flex token: run `ibkrctl flex init`")
+
+func ibkrNewFlex(token string) *ibkr.FlexClient { return ibkr.NewFlex(token) }
 
 func mcpCmd() *cobra.Command {
 	return &cobra.Command{
@@ -55,6 +62,15 @@ type ordersArg struct {
 
 type fxPairsArg struct {
 	Currency string `json:"currency"`
+}
+
+type scheduleArg struct {
+	Symbol string `json:"symbol"`
+	Asset  string `json:"asset,omitempty"`
+}
+
+type flexArg struct {
+	Query string `json:"query"`
 }
 
 type quoteArg struct {
@@ -244,6 +260,38 @@ func mcpServer() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_currency_pairs", Description: "List tradable FX pairs for a base currency."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in fxPairsArg) (*mcp.CallToolResult, rawOut, error) {
 			return wrap(client.CurrencyPairs(ctx, in.Currency))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_reconnect", Description: "Revive a dropped brokerage session without a full login (works only if the SSO cookie is still valid)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
+			_, _ = client.SSOInit(ctx, true)
+			return wrap(client.Reauthenticate(ctx))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_schedule", Description: "Trading hours and sessions for a symbol. asset defaults to STK."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in scheduleArg) (*mcp.CallToolResult, rawOut, error) {
+			asset := in.Asset
+			if asset == "" {
+				asset = "STK"
+			}
+			return wrap(client.TradingSchedule(ctx, asset, in.Symbol, "", ""))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_flex", Description: "Fetch a Flex statement (trades, realized P&L, dividends, cash, tax lots) by saved query name or id. Returns XML."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in flexArg) (*mcp.CallToolResult, rawOut, error) {
+			token, err := cfg.FlexToken()
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			if token == "" {
+				return nil, rawOut{}, errFlexToken
+			}
+			fc := ibkrNewFlex(token)
+			xmlBytes, err := fc.Statement(ctx, cfg.FlexQueryByName(in.Query), 0, 0)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return nil, rawOut{Data: redactFlex(string(xmlBytes))}, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_trades", Description: "Executions from the last seven days."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
