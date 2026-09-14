@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-14
+
 ### Added
 - Gateway lifecycle: `gateway install|start|stop|restart|status|uninstall`. Install
   copies a Client Portal Gateway and a bundled JRE into the support dir, patches the
