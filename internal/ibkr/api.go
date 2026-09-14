@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // AuthStatus is the gateway's brokerage session state.
@@ -114,7 +115,42 @@ func (c *Client) Snapshot(ctx context.Context, conids []string, fields []string)
 	if len(fields) > 0 {
 		q.Set("fields", strings.Join(fields, ","))
 	}
-	return c.Raw(ctx, "GET", "iserver/marketdata/snapshot?"+q.Encode(), nil)
+	path := "iserver/marketdata/snapshot?" + q.Encode()
+	// The first snapshot call only primes the subscription (sparse result); the
+	// fields arrive on a follow-up call a moment later.
+	out, err := c.Raw(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if snapshotSparse(out) {
+		select {
+		case <-ctx.Done():
+			return out, nil
+		case <-time.After(1200 * time.Millisecond):
+		}
+		if out2, err := c.Raw(ctx, "GET", path, nil); err == nil {
+			return out2, nil
+		}
+	}
+	return out, nil
+}
+
+// snapshotSparse reports whether a snapshot row carries no quote fields yet.
+func snapshotSparse(v any) bool {
+	arr, ok := v.([]any)
+	if !ok || len(arr) == 0 {
+		return true
+	}
+	m, ok := arr[0].(map[string]any)
+	if !ok {
+		return true
+	}
+	for k := range m {
+		if k != "conid" && k != "conidEx" && k != "server_id" && k != "_updated" {
+			return false
+		}
+	}
+	return true
 }
 
 // SecdefSearch resolves a symbol to contracts.

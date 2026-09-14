@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,7 +16,7 @@ import (
 
 func loginCmd() *cobra.Command {
 	var timeout int
-	var manual, show bool
+	var manual, headless bool
 	var otp string
 	c := &cobra.Command{
 		Use:   "login",
@@ -38,10 +39,18 @@ func loginCmd() *cobra.Command {
 				return waitAuthed(ctx, timeout)
 			}
 
+			authed := func() bool {
+				st, err := client.AuthStatus(ctx)
+				return err == nil && st.Authenticated
+			}
+			if !headless {
+				fmt.Println("a browser window will open with your credentials filled in.")
+				fmt.Println("complete any 2FA there (pick Text, enter the SMS code); ibkrctl waits for the session.")
+			}
 			err := ibkr.BrowserLogin(ctx, ibkr.LoginParams{
 				Username: cfg.Username,
 				Password: pass,
-				Headful:  show,
+				Headful:  !headless,
 				OTP:      otp,
 				OTPPrompt: func() (string, error) {
 					fmt.Print("2FA code: ")
@@ -52,16 +61,18 @@ func loginCmd() *cobra.Command {
 				LoginURL: loginURL,
 				Timeout:  time.Duration(timeout) * time.Second,
 				Log:      func(m string) { fmt.Println(m) },
+				Authed:   authed,
 			})
 			if err != nil {
-				return fmt.Errorf("browser login: %w (try `ibkrctl login --show` to watch, or --manual)", err)
+				return fmt.Errorf("browser login: %w (try `ibkrctl login --manual` to log in yourself)", err)
 			}
-			return waitAuthed(ctx, timeout)
+			fmt.Println("logged in")
+			return nil
 		},
 	}
 	c.Flags().IntVar(&timeout, "timeout", 180, "seconds to wait for authentication")
-	c.Flags().BoolVar(&manual, "manual", false, "just open the browser; type credentials yourself")
-	c.Flags().BoolVar(&show, "show", false, "show the browser window (debug selectors / watch 2FA)")
+	c.Flags().BoolVar(&manual, "manual", false, "just open your normal browser; type everything yourself")
+	c.Flags().BoolVar(&headless, "headless", false, "run the login browser hidden (only works with no interactive 2FA, or --otp)")
 	c.Flags().StringVar(&otp, "otp", "", "static 2FA code to enter if the login asks for one")
 	return c
 }
@@ -194,6 +205,12 @@ func resolveAccount(ctx context.Context, flag string) (string, error) {
 	}
 	if len(accts) == 0 {
 		return "", errors.New("no account available: run `ibkrctl login`")
+	}
+	// Skip pseudo-accounts like "All"; prefer a real account id (Uxxxxxxx).
+	for _, a := range accts {
+		if strings.HasPrefix(a.ID, "U") {
+			return a.ID, nil
+		}
 	}
 	return accts[0].ID, nil
 }

@@ -29,6 +29,12 @@ type LoginParams struct {
 	Timeout time.Duration
 	// Log receives progress lines.
 	Log func(string)
+	// Authed is polled after the form + 2FA are submitted; the browser stays
+	// open until it returns true (the gateway needs the page alive to finish
+	// the SSO handshake after the phone approval) or the timeout elapses.
+	Authed func() bool
+	// PollEvery is the auth poll interval (default 2s).
+	PollEvery time.Duration
 }
 
 // selectors tried in order for each field (the gateway form is JS-rendered and
@@ -109,9 +115,29 @@ func BrowserLogin(ctx context.Context, p LoginParams) error {
 		_ = clickFirst(bctx, submitSel)
 		p.logf("2FA code submitted")
 	} else {
-		p.logf("no code field; approve the push on your phone if prompted")
+		p.logf("approve the login on your phone if prompted (IB Key push)")
 	}
-	return nil
+
+	// Keep the browser open so the gateway can finish the SSO handshake once the
+	// second factor is approved, polling until the session is authenticated.
+	if p.Authed == nil {
+		return nil
+	}
+	every := p.PollEvery
+	if every == 0 {
+		every = 2 * time.Second
+	}
+	for {
+		select {
+		case <-bctx.Done():
+			return fmt.Errorf("login not confirmed before timeout: %w", bctx.Err())
+		case <-time.After(every):
+		}
+		if p.Authed() {
+			p.logf("authenticated")
+			return nil
+		}
+	}
 }
 
 func fillFirst(ctx context.Context, sels []string, val string) error {
