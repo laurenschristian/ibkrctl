@@ -93,6 +93,12 @@ func New() *Server {
 			i := strings.Index(p, "order/")
 			s.Canceled = p[i+len("order/"):]
 			write(w, map[string]any{"msg": "Request was submitted", "order_id": s.Canceled})
+		case strings.HasSuffix(p, "/alerts"):
+			write(w, []any{})
+		case strings.Contains(p, "/alert/") && r.Method == http.MethodDelete:
+			write(w, map[string]any{"deleted": true})
+		case strings.Contains(p, "/alert/"):
+			write(w, map[string]any{"alertId": "a1", "alertName": "x"})
 		default:
 			write(w, map[string]any{})
 		}
@@ -116,6 +122,38 @@ func New() *Server {
 	})
 	mux.HandleFunc(base+"iserver/scanner/run", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, map[string]any{"contracts": []any{map[string]any{"conid": 265598, "symbol": "AAPL"}}})
+	})
+	mux.HandleFunc(base+"iserver/watchlists", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"data": map[string]any{"user_lists": []any{map[string]any{"id": "101", "name": "Signal Watchlist"}}}})
+	})
+	mux.HandleFunc(base+"iserver/watchlist", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			write(w, map[string]any{"deleted": r.URL.Query().Get("id")})
+			return
+		}
+		if r.Method == http.MethodPost {
+			write(w, map[string]any{"created": true})
+			return
+		}
+		write(w, map[string]any{"id": r.URL.Query().Get("id"), "instruments": []any{map[string]any{"ticker": "GOOGL", "conid": 208813719}}})
+	})
+	mux.HandleFunc(base+"iserver/news/top", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"news": []any{map[string]any{"headline": "AI capex accelerates"}}})
+	})
+	mux.HandleFunc(base+"fyi/notifications", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, []any{map[string]any{"ID": "n1", "MD": "note"}})
+	})
+	mux.HandleFunc(base+"fyi/unreadnumber", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"BN": 3})
+	})
+	mux.HandleFunc(base+"iserver/exchangerate", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"rate": 1.0855})
+	})
+	mux.HandleFunc(base+"trsrv/futures", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"ES": []any{map[string]any{"conid": 515416632, "expirationDate": 20261218}}})
+	})
+	mux.HandleFunc(base+"pa/transactions", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"transactions": []any{map[string]any{"cur": "USD", "amt": -100.0}}})
 	})
 	s.Server = httptest.NewServer(mux)
 	return s

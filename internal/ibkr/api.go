@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -268,3 +269,5 @@ func (c *Client) Fundamentals(ctx context.Context, conid string) (any, error) {
 func (c *Client) MarketDataUnsubscribe(ctx context.Context, conid string) error {
 	return c.Post(ctx, "iserver/marketdata/"+url.PathEscape(conid)+"/unsubscribe", nil, nil)
 }
+
+func itoa(n int) string { return strconv.Itoa(n) }

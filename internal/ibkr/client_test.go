@@ -154,3 +154,53 @@ func TestResearchEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMarketsEndpoints(t *testing.T) {
+	c, _ := newClient(t)
+	ctx := context.Background()
+	if _, err := c.Watchlists(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Watchlist(ctx, "101"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.CreateWatchlist(ctx, "9", "Test", []string{"265598"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DeleteWatchlist(ctx, "9"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.News(ctx, []string{"265598"}, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.News(ctx, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Notifications(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.UnreadCount(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ExchangeRate(ctx, "EUR", "USD"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Futures(ctx, []string{"ES"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SearchSecType(ctx, "EUR", "CASH"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Alerts(ctx, "U1234567"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Alert(ctx, "U1234567", "a1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DeleteAlert(ctx, "U1234567", "a1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Transactions(ctx, "U1234567", []string{"265598"}, 30); err != nil {
+		t.Fatal(err)
+	}
+}

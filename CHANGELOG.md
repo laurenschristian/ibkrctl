@@ -24,3 +24,6 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Privacy: `account autoname` / `account alias` map real account ids to stable
   aliases, and `account redact on` strips real account numbers and holder names
   from every command and MCP tool. The agent only ever sees `account-1`.
+- More markets and data: `watchlists` (+ get/create/delete), `news`,
+  `notifications`, `fx` (exchange rates), `futures`, `alerts`, and
+  `transactions`, with matching MCP read tools. 25 MCP tools total.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,43 +37,54 @@ func gatewayInstallCmd() *cobra.Command {
 		Short: "Install the gateway (copy clientportal.gw + JRE), patch the port, load the launchd agents",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			gw := newGateway()
-			// Resolve the gateway source.
-			src := from
-			if src == "" {
+			// Copy a gateway only when we need one: an explicit --from, or nothing
+			// installed yet. An existing install is reused as-is.
+			switch {
+			case from != "":
+				fmt.Printf("copying gateway from %s\n", from)
+				if err := gw.CopyFrom(from); err != nil {
+					return err
+				}
+			case gw.Installed():
+				fmt.Printf("using installed gateway at %s\n", gw.Dir)
+			default:
 				d, err := ibkr.DiscoverGatewaySrc()
 				if err != nil {
 					return err
 				}
-				src = d
+				fmt.Printf("copying gateway from %s\n", d)
+				if err := gw.CopyFrom(d); err != nil {
+					return err
+				}
 			}
-			fmt.Printf("copying gateway from %s\n", src)
-			if err := gw.CopyFrom(src); err != nil {
-				return err
-			}
-			// Resolve java.
+			// Resolve java: flag, else the configured one if it still exists, else discover.
 			if java == "" {
+				java = cfg.JavaBin
+			}
+			if java == "" || !fileExists(java) {
 				j, err := ibkr.DiscoverJava()
 				if err != nil {
 					return err
 				}
 				java = j
 			}
-			// Copy the JRE into the support dir so the install survives npx eviction.
-			if stable, cerr := ibkr.CopyJava(java, config.GatewayHome()); cerr == nil {
-				java = stable
+			// Copy the JRE into the support dir so the install survives npx eviction,
+			// unless java already lives there.
+			if !strings.HasPrefix(java, config.GatewayHome()) {
+				if stable, cerr := ibkr.CopyJava(java, config.GatewayHome()); cerr == nil {
+					java = stable
+				}
 			}
 			gw.Java = java
 			fmt.Printf("java %s\n", java)
 			if err := gw.PatchConf(); err != nil {
 				return err
 			}
-			// Persist resolved paths.
 			cfg.GatewayDir = gw.Dir
 			cfg.JavaBin = java
 			if err := config.Save(cfg); err != nil {
 				return err
 			}
-			// Write and load launchd agents.
 			gp, err := gw.WriteGatewayPlist()
 			if err != nil {
 				return err
@@ -94,9 +106,14 @@ func gatewayInstallCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&from, "from", "", "copy clientportal.gw from this directory (default: auto-detect)")
-	c.Flags().StringVar(&java, "java", "", "java executable to run the gateway (default: auto-detect)")
+	c.Flags().StringVar(&from, "from", "", "copy clientportal.gw from this directory (default: reuse install or auto-detect)")
+	c.Flags().StringVar(&java, "java", "", "java executable to run the gateway (default: configured or auto-detect)")
 	return c
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 func gatewayStartCmd() *cobra.Command {

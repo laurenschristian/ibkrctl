@@ -70,6 +70,24 @@ type scannerArg struct {
 	Location   string `json:"location,omitempty"`
 }
 
+type watchlistArg struct {
+	ID string `json:"id"`
+}
+
+type newsArg struct {
+	Conids []string `json:"conids,omitempty"`
+	Num    int      `json:"num,omitempty"`
+}
+
+type fxArg struct {
+	Currency string `json:"currency"`
+	Source   string `json:"source,omitempty"`
+}
+
+type symbolsArg struct {
+	Symbols []string `json:"symbols"`
+}
+
 type rawArg struct {
 	Method string `json:"method,omitempty"`
 	Path   string `json:"path"`
@@ -181,6 +199,42 @@ func mcpServer() *mcp.Server {
 				"location":   orDefault(in.Location, "STK.US.MAJOR"),
 			}
 			return wrap(client.RunScanner(ctx, body))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_watchlists", Description: "List watchlists (system and user)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Watchlists(ctx))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_watchlist", Description: "Show one watchlist's instruments by id."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in watchlistArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Watchlist(ctx, in.ID))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_news", Description: "Top market news, optionally filtered to conids."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in newsArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.News(ctx, in.Conids, in.Num))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_notifications", Description: "IBKR account notifications (FYI)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Notifications(ctx))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_fx", Description: "Spot exchange rate for a currency vs a base (default USD)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in fxArg) (*mcp.CallToolResult, rawOut, error) {
+			src := in.Source
+			if src == "" {
+				src = "USD"
+			}
+			return wrap(client.ExchangeRate(ctx, in.Currency, src))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_futures", Description: "Futures contracts for underlying symbols (e.g. ES, NQ, CL)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in symbolsArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Futures(ctx, in.Symbols))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_alerts", Description: "List price alerts for an account."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(client.Alerts(ctx, acct))
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_raw", Description: "Call any /v1/api path (GET unless method is set). Read-only use recommended."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in rawArg) (*mcp.CallToolResult, rawOut, error) {

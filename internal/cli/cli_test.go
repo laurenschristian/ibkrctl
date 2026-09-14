@@ -204,3 +204,16 @@ func TestAccountAliasAndRedact(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMarketsCommands(t *testing.T) {
+	withGateway(t)
+	for _, c := range [][]string{
+		{"watchlists"}, {"watchlists", "get", "101"}, {"news"}, {"news", "--num", "3"},
+		{"notifications"}, {"notifications", "--unread"}, {"fx", "EUR"}, {"futures", "ES"},
+		{"alerts"}, {"transactions", "265598", "--days", "30"},
+	} {
+		if out, err := run(t, c...); err != nil {
+			t.Fatalf("%v -> %v\n%s", c, err, out)
+		}
+	}
+}
