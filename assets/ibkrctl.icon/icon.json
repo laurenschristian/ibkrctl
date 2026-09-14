@@ -1,0 +1,7 @@
+{
+  "fill" : "automatic",
+  "groups" : [
+    { "layers" : [ { "glass" : false, "hidden" : false, "image-name" : "icon.png", "name" : "Icon", "position" : { "scale" : 1, "translation-in-points" : [0, 0] } } ] }
+  ],
+  "supported-platforms" : { "circles" : ["watchOS"], "squares" : ["macOS", "iOS"] }
+}
