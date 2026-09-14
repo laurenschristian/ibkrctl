@@ -30,6 +30,20 @@ type Config struct {
 	// real numbers. Commands accept either the alias or the real id.
 	Accounts []AccountAlias `yaml:"accounts,omitempty"`
 	Redact   bool           `yaml:"redact,omitempty"`
+	// Presets are reusable order shapes, replayed with `place --preset <name>`.
+	Presets []Preset `yaml:"presets,omitempty"`
+}
+
+// Preset is a saved order shape. TakeProfitPct/StopLossPct, when set, turn a
+// `place` into a bracket priced off the entry (percent as 0.05 = 5%).
+type Preset struct {
+	Name          string  `yaml:"name"`
+	Side          string  `yaml:"side,omitempty"`
+	Type          string  `yaml:"type,omitempty"`
+	TIF           string  `yaml:"tif,omitempty"`
+	Qty           float64 `yaml:"qty,omitempty"`
+	TakeProfitPct float64 `yaml:"take_profit_pct,omitempty"`
+	StopLossPct   float64 `yaml:"stop_loss_pct,omitempty"`
 }
 
 type AccountAlias struct {
@@ -105,6 +119,14 @@ func GatewayHome() string {
 	return filepath.Join(supportDir(), "gateway")
 }
 
+// CacheDir holds on-disk caches (e.g. historical bars).
+func CacheDir() string {
+	if p := os.Getenv("IBKR_CACHE_DIR"); p != "" {
+		return p
+	}
+	return filepath.Join(supportDir(), "cache")
+}
+
 func Load() (*Config, error) {
 	c := &Config{Port: DefaultPort}
 	if b, err := os.ReadFile(Path()); err == nil {
@@ -158,6 +180,16 @@ func Save(c *Config) error {
 		return err
 	}
 	return os.WriteFile(p, b, 0o600)
+}
+
+// PresetByName returns a saved preset, or false.
+func (c *Config) PresetByName(name string) (Preset, bool) {
+	for _, p := range c.Presets {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return Preset{}, false
 }
 
 // Password runs PasswordCmd and returns its trimmed stdout. Empty if unset.

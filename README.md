@@ -19,6 +19,7 @@ ibkrctl orders                     # live orders
 ibkrctl summary                    # net liquidation, buying power
 ibkrctl ledger                     # cash by currency
 ibkrctl allocation                 # value by asset class / sector
+ibkrctl review                     # one-shot snapshot: summary + positions + allocation + P&L
 ibkrctl trades                     # executions, last 7 days
 ibkrctl search NVDA                # resolve a ticker to a conid
 ibkrctl quote 265598               # market-data snapshot by conid
@@ -26,7 +27,7 @@ ibkrctl history 265598 --period 1y --bar 1d
 ibkrctl fundamentals 265598        # market cap, P/E, EPS, yield
 ibkrctl chain AAPL --month JAN27   # option strikes
 ibkrctl scanner --type TOP_PERC_GAIN
-ibkrctl watchlists                 # your watchlists; `watchlists get <id>` for members
+ibkrctl watchlists                 # your watchlists; `watchlists get <id> --quotes` merges live prices
 ibkrctl news --num 5               # top market news
 ibkrctl notifications              # IBKR account notifications
 ibkrctl fx EUR                     # spot exchange rate vs USD
@@ -35,6 +36,9 @@ ibkrctl alerts                     # price alerts
 ibkrctl transactions 208813719 --days 30
 ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --preview   # margin/commission, no submit
 ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --confirm
+ibkrctl place 265598 --side BUY --qty 1 --price 190 --bracket --take-profit 210 --stop 175 --confirm
+ibkrctl presets add scalp --side BUY --qty 10 --take-profit-pct 0.05 --stop-loss-pct 0.03
+ibkrctl place 265598 --preset scalp --price 190   # preset-priced bracket
 ibkrctl modify <orderId> --price 195 --confirm
 ibkrctl cancel <orderId>
 ibkrctl rules 265598               # valid order types, increments
@@ -97,7 +101,7 @@ ibkrctl gateway uninstall --yes
 
 ## MCP
 
-`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_watchlists`, `ibkr_watchlist`, `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
+`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_review`, `ibkr_watchlists`, `ibkr_watchlist` (set `quotes=true` to merge live prices), `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
 
 ```console
 claude mcp add ibkr -- ibkrctl mcp
@@ -119,6 +123,8 @@ make sec
 
 - The gateway proxies to `api.ibkr.com` and holds the session, so ibkrctl never sees your password after `login` fills it.
 - The stock gateway `conf.yaml` ships a malformed deny IP that 404s the login page; `gateway install` strips it automatically.
+- `positions`, `summary`, `ledger`, `allocation`, and `review` print human tables by default; add `--json` for the raw payload.
+- `history` caches bars on disk (12h for daily+, 10min intraday); pass `--refresh` to bypass.
 - Market-data fields are IBKR field ids (`31` last, `55` symbol, `84` bid, `86` ask, `87` volume). Pass `--fields` to `quote` to choose.
 
 MIT.

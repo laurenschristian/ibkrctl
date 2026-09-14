@@ -71,7 +71,8 @@ type scannerArg struct {
 }
 
 type watchlistArg struct {
-	ID string `json:"id"`
+	ID     string `json:"id"`
+	Quotes bool   `json:"quotes,omitempty"`
 }
 
 type newsArg struct {
@@ -159,14 +160,6 @@ func mcpServer() *mcp.Server {
 			}
 			return wrap(client.Strikes(ctx, in.Conid, st, in.Month))
 		})
-	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_summary", Description: "Account summary: net liquidation, cash, buying power."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
-			acct, err := resolveAccount(ctx, in.Account)
-			if err != nil {
-				return nil, rawOut{}, err
-			}
-			return wrap(client.Summary(ctx, acct))
-		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_ledger", Description: "Cash balances by currency for an account."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
@@ -182,6 +175,14 @@ func mcpServer() *mcp.Server {
 				return nil, rawOut{}, err
 			}
 			return wrap(client.Allocation(ctx, acct))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_review", Description: "One-shot portfolio snapshot: summary, positions, allocation, session P&L, and open orders for an account."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(portfolioReview(ctx, acct), nil)
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_trades", Description: "Executions from the last seven days."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
@@ -223,9 +224,16 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
 			return wrap(client.Watchlists(ctx))
 		})
-	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_watchlist", Description: "Show one watchlist's instruments by id."},
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_watchlist", Description: "Show one watchlist's instruments by id. Set quotes=true to merge live last/bid/ask."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in watchlistArg) (*mcp.CallToolResult, rawOut, error) {
-			return wrap(client.Watchlist(ctx, in.ID))
+			data, err := client.Watchlist(ctx, in.ID)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			if in.Quotes {
+				data = enrichWatchlist(ctx, data)
+			}
+			return wrap(data, nil)
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_news", Description: "Top market news, optionally filtered to conids."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in newsArg) (*mcp.CallToolResult, rawOut, error) {

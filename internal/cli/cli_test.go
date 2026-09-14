@@ -195,8 +195,8 @@ func TestAccountAliasAndRedact(t *testing.T) {
 	if _, err := run(t, "account", "redact", "on"); err != nil {
 		t.Fatal(err)
 	}
-	// With redaction on, positions should show the alias, not the real id.
-	out, err := run(t, "positions", "--account", "main")
+	// With redaction on, positions JSON should show the alias, not the real id.
+	out, err := run(t, "positions", "--account", "main", "--json")
 	if err != nil || strings.Contains(out, "U1234567") || !strings.Contains(out, "main") {
 		t.Fatalf("redaction not applied: %v\n%s", err, out)
 	}

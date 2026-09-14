@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 )
 
@@ -50,8 +51,20 @@ func New() *Server {
 	mux.HandleFunc(base+"iserver/account/orders", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, map[string]any{"orders": []any{}})
 	})
-	mux.HandleFunc(base+"iserver/marketdata/snapshot", func(w http.ResponseWriter, _ *http.Request) {
-		write(w, []any{map[string]any{"conid": 265598, "31": "195.00", "55": "AAPL"}})
+	mux.HandleFunc(base+"iserver/marketdata/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		ids := r.URL.Query().Get("conids")
+		var out []any
+		for _, id := range strings.Split(ids, ",") {
+			if id == "" {
+				continue
+			}
+			n, _ := strconv.Atoi(id)
+			out = append(out, map[string]any{"conid": n, "31": "195.00", "55": "SYM", "84": "194.90", "86": "195.10", "87": "1000"})
+		}
+		if len(out) == 0 {
+			out = []any{map[string]any{"conid": 265598, "31": "195.00", "55": "AAPL"}}
+		}
+		write(w, out)
 	})
 	mux.HandleFunc(base+"iserver/secdef/search", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, []any{map[string]any{"conid": "265598", "symbol": "AAPL"}})
@@ -84,7 +97,12 @@ func New() *Server {
 		p := strings.TrimPrefix(r.URL.Path, base+"iserver/account/")
 		switch {
 		case strings.HasSuffix(p, "/orders/whatif") && r.Method == http.MethodPost:
-			write(w, map[string]any{"amount": map[string]any{"commission": "1.00 USD", "total": "101.00 USD"}})
+			write(w, map[string]any{
+				"amount":  map[string]any{"amount": "100.00 USD", "commission": "1.00 USD", "total": "101.00 USD"},
+				"equity":  map[string]any{"current": "100000", "change": "0", "after": "100000"},
+				"initial": map[string]any{"current": "10000", "change": "100", "after": "10100"},
+				"warn":    "",
+			})
 		case strings.Contains(p, "/order/") && r.Method == http.MethodPost:
 			write(w, []any{map[string]any{"order_id": "888", "order_status": "Submitted"}})
 		case strings.HasSuffix(p, "/orders") && r.Method == http.MethodPost:

@@ -20,6 +20,12 @@ linters:
     - reassign
     - wastedassign
     - gocheckcompilerdirectives
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
   exclusions:
     rules:
       - path: _test\.go

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -23,18 +25,80 @@ func watchlistsCmd() *cobra.Command {
 }
 
 func watchlistGetCmd() *cobra.Command {
-	return &cobra.Command{
+	var quotes bool
+	c := &cobra.Command{
 		Use:   "get <id>",
-		Short: "Show one watchlist's instruments",
+		Short: "Show one watchlist's instruments (--quotes merges live prices)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := client.Watchlist(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
+			if quotes {
+				data = enrichWatchlist(cmd.Context(), data)
+			}
 			return emit(data)
 		},
 	}
+	c.Flags().BoolVar(&quotes, "quotes", false, "merge last/bid/ask into each instrument")
+	return c
+}
+
+// enrichWatchlist merges a market-data snapshot into each instrument by conid.
+// Any failure returns the watchlist unchanged rather than erroring the command.
+func enrichWatchlist(ctx context.Context, data any) any {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return data
+	}
+	insts, ok := m["instruments"].([]any)
+	if !ok {
+		return data
+	}
+	var conids []string
+	for _, it := range insts {
+		if im, ok := it.(map[string]any); ok {
+			if id := conidStr(im["conid"]); id != "" {
+				conids = append(conids, id)
+			}
+		}
+	}
+	if len(conids) == 0 {
+		return data
+	}
+	snap, err := client.Snapshot(ctx, conids, []string{"31", "84", "86", "87"})
+	if err != nil {
+		return data
+	}
+	byConid := map[string]map[string]any{}
+	if rows, ok := snap.([]any); ok {
+		for _, r := range rows {
+			if rm, ok := r.(map[string]any); ok {
+				byConid[conidStr(rm["conid"])] = rm
+			}
+		}
+	}
+	for _, it := range insts {
+		im, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		if q, ok := byConid[conidStr(im["conid"])]; ok {
+			im["quote"] = map[string]any{"last": q["31"], "bid": q["84"], "ask": q["86"], "volume": q["87"]}
+		}
+	}
+	return data
+}
+
+func conidStr(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case float64:
+		return strconv.FormatInt(int64(t), 10)
+	}
+	return ""
 }
 
 func watchlistCreateCmd() *cobra.Command {

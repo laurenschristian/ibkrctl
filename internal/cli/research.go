@@ -21,7 +21,7 @@ func summaryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderSummary)
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account alias or id")
@@ -42,7 +42,7 @@ func ledgerCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderLedger)
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account alias or id")
@@ -63,7 +63,7 @@ func allocationCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderAllocation)
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account alias or id")
@@ -118,13 +118,13 @@ func infoCmd() *cobra.Command {
 
 func historyCmd() *cobra.Command {
 	var period, bar string
-	var outside bool
+	var outside, refresh bool
 	c := &cobra.Command{
 		Use:   "history <conid>",
-		Short: "Historical price bars for a contract",
+		Short: "Historical price bars for a contract (cached on disk)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := client.History(cmd.Context(), args[0], period, bar, outside)
+			data, err := cachedHistory(cmd.Context(), args[0], period, bar, outside, refresh)
 			if err != nil {
 				return err
 			}
@@ -134,6 +134,7 @@ func historyCmd() *cobra.Command {
 	c.Flags().StringVar(&period, "period", "1y", "lookback: 1d, 5d, 1m, 6m, 1y, 5y")
 	c.Flags().StringVar(&bar, "bar", "1d", "bar size: 1min, 5min, 1h, 1d, 1w")
 	c.Flags().BoolVar(&outside, "outside-rth", false, "include pre/post market")
+	c.Flags().BoolVar(&refresh, "refresh", false, "bypass the on-disk cache")
 	return c
 }
 

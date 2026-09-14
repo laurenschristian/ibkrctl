@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -26,7 +27,7 @@ func positionsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emit(data)
+			return show(data, renderPositions)
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account id (default: config or first)")
@@ -144,14 +145,17 @@ func firstConid(v any) (string, bool) {
 }
 
 func placeCmd() *cobra.Command {
-	var account, side, orderType, tif string
+	var account, side, orderType, tif, preset string
 	var qty float64
-	var price float64
-	var confirm, preview bool
+	var price, takeProfit, stop float64
+	var confirm, preview, bracket bool
 	c := &cobra.Command{
 		Use:   "place <conid>",
 		Short: "Place an order (requires --confirm to actually submit)",
-		Args:  cobra.ExactArgs(1),
+		Long: "Place an order. Dry-run by default; --preview shows margin/commission, " +
+			"--confirm submits. --bracket adds a take-profit and/or stop child order. " +
+			"--preset applies a saved order shape (see `ibkrctl presets`).",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			acct, err := resolveAccount(ctx, account)
@@ -161,6 +165,37 @@ func placeCmd() *cobra.Command {
 			conid, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("conid must be numeric: %w", err)
+			}
+			// A preset fills unset fields and can imply a bracket via pct offsets.
+			if preset != "" {
+				ps, ok := cfg.PresetByName(preset)
+				if !ok {
+					return fmt.Errorf("no preset named %q (see `ibkrctl presets`)", preset)
+				}
+				if side == "" {
+					side = ps.Side
+				}
+				if !cmd.Flags().Changed("type") && ps.Type != "" {
+					orderType = ps.Type
+				}
+				if !cmd.Flags().Changed("tif") && ps.TIF != "" {
+					tif = ps.TIF
+				}
+				if qty == 0 {
+					qty = ps.Qty
+				}
+				if ps.TakeProfitPct > 0 || ps.StopLossPct > 0 {
+					if price <= 0 {
+						return errors.New("--price (entry) is required to price a preset bracket")
+					}
+					bracket = true
+					if takeProfit == 0 && ps.TakeProfitPct > 0 {
+						takeProfit = bracketPrice(price, ps.TakeProfitPct, side, true)
+					}
+					if stop == 0 && ps.StopLossPct > 0 {
+						stop = bracketPrice(price, ps.StopLossPct, side, false)
+					}
+				}
 			}
 			side = strings.ToUpper(side)
 			if side != "BUY" && side != "SELL" {
@@ -180,11 +215,10 @@ func placeCmd() *cobra.Command {
 				order["price"] = price
 			}
 			if preview {
-				data, err := client.WhatIf(ctx, acct, order)
-				if err != nil {
-					return err
-				}
-				return emit(data)
+				return show(mustWhatIf(ctx, acct, order), renderWhatIf)
+			}
+			if bracket {
+				return placeBracket(ctx, cmd, acct, order, side, takeProfit, stop, confirm)
 			}
 			if !confirm {
 				fmt.Printf("DRY RUN (pass --preview for margin/commission, --confirm to submit):\n")
@@ -194,7 +228,6 @@ func placeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// Auto-answer the initial confirmation prompt(s) the gateway returns.
 			data, err = answerReplies(ctx, data)
 			if err != nil {
 				return err
@@ -206,11 +239,78 @@ func placeCmd() *cobra.Command {
 	c.Flags().StringVar(&side, "side", "", "BUY or SELL")
 	c.Flags().Float64Var(&qty, "qty", 0, "quantity")
 	c.Flags().StringVar(&orderType, "type", "MKT", "order type: MKT or LMT")
-	c.Flags().Float64Var(&price, "price", 0, "limit price (for LMT)")
+	c.Flags().Float64Var(&price, "price", 0, "limit price (for LMT / bracket entry)")
 	c.Flags().StringVar(&tif, "tif", "DAY", "time in force: DAY, GTC, IOC")
+	c.Flags().BoolVar(&bracket, "bracket", false, "attach take-profit and/or stop child orders")
+	c.Flags().Float64Var(&takeProfit, "take-profit", 0, "bracket take-profit limit price")
+	c.Flags().Float64Var(&stop, "stop", 0, "bracket stop price")
+	c.Flags().StringVar(&preset, "preset", "", "apply a saved preset (see `ibkrctl presets`)")
 	c.Flags().BoolVar(&preview, "preview", false, "preview margin/commission/impact (whatif) without submitting")
 	c.Flags().BoolVar(&confirm, "confirm", false, "actually submit the order")
 	return c
+}
+
+// bracketPrice computes a child price from an entry and a percent offset. A
+// take-profit is above entry for a BUY (below for a SELL); a stop is the reverse.
+func bracketPrice(entry, pct float64, side string, takeProfit bool) float64 {
+	up := (strings.EqualFold(side, "BUY")) == takeProfit
+	f := entry * (1 + pct)
+	if !up {
+		f = entry * (1 - pct)
+	}
+	return round2(f)
+}
+
+func round2(f float64) float64 {
+	return float64(int64(f*100+0.5)) / 100
+}
+
+// mustWhatIf runs a preview and returns the payload (or an error map to render).
+func mustWhatIf(ctx context.Context, acct string, order map[string]any) any {
+	data, err := client.WhatIf(ctx, acct, order)
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
+	return data
+}
+
+// placeBracket builds an entry plus take-profit/stop children in one submission.
+func placeBracket(ctx context.Context, cmd *cobra.Command, acct string, entry map[string]any, side string, takeProfit, stop float64, confirm bool) error {
+	if takeProfit <= 0 && stop <= 0 {
+		return errors.New("--bracket needs --take-profit and/or --stop")
+	}
+	coid := fmt.Sprintf("ibkrctl-%d", time.Now().UnixNano())
+	entry["cOID"] = coid
+	opposite := "SELL"
+	if strings.EqualFold(side, "SELL") {
+		opposite = "BUY"
+	}
+	orders := []map[string]any{entry}
+	child := func(ot string, p float64) map[string]any {
+		return map[string]any{
+			"conid": entry["conid"], "side": opposite, "quantity": entry["quantity"],
+			"orderType": ot, "price": p, "tif": "GTC", "parentId": coid,
+		}
+	}
+	if takeProfit > 0 {
+		orders = append(orders, child("LMT", takeProfit))
+	}
+	if stop > 0 {
+		orders = append(orders, child("STP", stop))
+	}
+	if !confirm {
+		fmt.Printf("DRY RUN bracket (pass --confirm to submit):\n")
+		return emit(map[string]any{"account": acct, "orders": orders})
+	}
+	data, err := client.PlaceOrders(ctx, acct, orders)
+	if err != nil {
+		return err
+	}
+	data, err = answerReplies(ctx, data)
+	if err != nil {
+		return err
+	}
+	return emit(data)
 }
 
 // answerReplies confirms the gateway's suppressible order-confirmation prompts.

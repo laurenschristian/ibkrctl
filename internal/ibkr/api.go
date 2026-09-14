@@ -190,6 +190,13 @@ func (c *Client) PlaceOrder(ctx context.Context, accountID string, order map[str
 	return c.Raw(ctx, "POST", "iserver/account/"+url.PathEscape(accountID)+"/orders", body)
 }
 
+// PlaceOrders submits several orders in one request (bracket/OCO groups). The
+// gateway reply may still be a confirmation prompt to answer via Reply.
+func (c *Client) PlaceOrders(ctx context.Context, accountID string, orders []map[string]any) (any, error) {
+	body := map[string]any{"orders": orders}
+	return c.Raw(ctx, "POST", "iserver/account/"+url.PathEscape(accountID)+"/orders", body)
+}
+
 // Reply answers a placement confirmation prompt.
 func (c *Client) Reply(ctx context.Context, replyID string, confirmed bool) (any, error) {
 	return c.Raw(ctx, "POST", "iserver/reply/"+url.PathEscape(replyID), map[string]any{"confirmed": confirmed})
