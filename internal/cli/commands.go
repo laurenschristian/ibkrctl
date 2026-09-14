@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/laurenschristian/ibkrctl/internal/config"
 	"github.com/laurenschristian/ibkrctl/internal/ibkr"
 )
 
@@ -164,9 +165,9 @@ func tickleCmd() *cobra.Command {
 }
 
 func accountCmd() *cobra.Command {
-	return &cobra.Command{
+	c := &cobra.Command{
 		Use:   "account",
-		Short: "List brokerage accounts",
+		Short: "List brokerage accounts (aliases when redaction is on)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			accts, err := client.Accounts(cmd.Context())
 			if err != nil {
@@ -180,12 +181,100 @@ func accountCmd() *cobra.Command {
 				return nil
 			}
 			for _, a := range accts {
-				name := a.DisplayName
-				if name == "" {
-					name = a.AccountTitle
+				label := cfg.AliasFor(a.ID)
+				id := a.ID
+				if cfg.Redact {
+					id = label // never print the real id
 				}
-				fmt.Printf("%-12s %s\n", a.ID, name)
+				fmt.Printf("%-12s %s\n", id, label)
 			}
+			return nil
+		},
+	}
+	c.AddCommand(accountAliasCmd(), accountAutonameCmd(), redactCmd())
+	return c
+}
+
+func accountAliasCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "alias <account-id|alias> <new-alias>",
+		Short: "Give an account a stable alias (so its real number stays hidden)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			id := cfg.IDFor(args[0])
+			set := false
+			for i := range cfg.Accounts {
+				if cfg.Accounts[i].ID == id {
+					cfg.Accounts[i].Alias = args[1]
+					set = true
+				}
+			}
+			if !set {
+				cfg.Accounts = append(cfg.Accounts, config.AccountAlias{ID: id, Alias: args[1]})
+			}
+			if err := config.Save(cfg); err != nil {
+				return err
+			}
+			fmt.Printf("aliased %s -> %s\n", args[1], args[1])
+			return nil
+		},
+	}
+}
+
+func accountAutonameCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "autoname",
+		Short: "Assign account-1, account-2, ... to the live real accounts",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			accts, err := client.Accounts(cmd.Context())
+			if err != nil {
+				return err
+			}
+			n := 0
+			for _, a := range accts {
+				if !strings.HasPrefix(a.ID, "U") {
+					continue // skip pseudo-accounts like "All"
+				}
+				n++
+				alias := fmt.Sprintf("account-%d", n)
+				found := false
+				for i := range cfg.Accounts {
+					if cfg.Accounts[i].ID == a.ID {
+						found = true
+					}
+				}
+				if !found {
+					cfg.Accounts = append(cfg.Accounts, config.AccountAlias{ID: a.ID, Alias: alias})
+				}
+			}
+			if err := config.Save(cfg); err != nil {
+				return err
+			}
+			fmt.Printf("named %d account(s); run `ibkrctl account redact on` to hide the numbers\n", n)
+			return nil
+		},
+	}
+}
+
+func redactCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:       "redact <on|off>",
+		Short:     "Hide real account numbers and names in all output",
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{"on", "off"},
+		RunE: func(_ *cobra.Command, args []string) error {
+			switch args[0] {
+			case "on":
+				cfg.Redact = true
+			case "off":
+				cfg.Redact = false
+			default:
+				return fmt.Errorf("use on or off")
+			}
+			if err := config.Save(cfg); err != nil {
+				return err
+			}
+			fmt.Printf("redaction %s\n", args[0])
 			return nil
 		},
 	}
@@ -194,10 +283,10 @@ func accountCmd() *cobra.Command {
 // resolveAccount picks the account id: --account flag, config, or the first account.
 func resolveAccount(ctx context.Context, flag string) (string, error) {
 	if flag != "" {
-		return flag, nil
+		return cfg.IDFor(flag), nil // accept an alias or a real id
 	}
-	if cfg.Account != "" {
-		return cfg.Account, nil
+	if id := cfg.DefaultAccountID(); id != "" {
+		return id, nil
 	}
 	accts, err := client.Accounts(ctx)
 	if err != nil {

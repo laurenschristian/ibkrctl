@@ -66,9 +66,13 @@ func New() *Server {
 	mux.HandleFunc(base+"portfolio/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/summary"):
-			write(w, map[string]any{"netliquidation": map[string]any{"amount": 100000.0}})
+			write(w, map[string]any{"netliquidation": map[string]any{"amount": 100000.0}, "accountcode": map[string]any{"value": "U1234567"}})
+		case strings.HasSuffix(r.URL.Path, "/ledger"):
+			write(w, map[string]any{"USD": map[string]any{"cashbalance": 3771.98, "currency": "USD", "acctcode": "U1234567"}})
+		case strings.HasSuffix(r.URL.Path, "/allocation"):
+			write(w, map[string]any{"assetClass": map[string]any{"long": map[string]any{"STK": 93047.1, "CASH": 3771.98}}})
 		default:
-			write(w, []any{map[string]any{"conid": 265598, "contractDesc": "AAPL", "position": 100.0, "mktValue": 19500.0}})
+			write(w, []any{map[string]any{"acctId": "U1234567", "conid": 265598, "contractDesc": "AAPL", "position": 100.0, "mktValue": 19500.0}})
 		}
 	})
 	// place, reply, cancel, status under iserver/account/
@@ -98,6 +102,21 @@ func New() *Server {
 		write(w, []any{map[string]any{"order_id": "999", "order_status": "Submitted"}})
 	})
 
+	mux.HandleFunc(base+"iserver/marketdata/history", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"symbol": "AAPL", "data": []any{map[string]any{"o": 100.0, "c": 101.0, "h": 102.0, "l": 99.0, "t": 1789405846192}}})
+	})
+	mux.HandleFunc(base+"iserver/account/trades", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, []any{map[string]any{"execution_id": "e1", "symbol": "AAPL", "side": "B", "size": 10.0, "account": "U1234567"}})
+	})
+	mux.HandleFunc(base+"trsrv/secdef", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"secdef": []any{map[string]any{"conid": 265598, "ticker": "AAPL"}}})
+	})
+	mux.HandleFunc(base+"iserver/scanner/params", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"scan_type_list": []any{map[string]any{"code": "TOP_PERC_GAIN"}}})
+	})
+	mux.HandleFunc(base+"iserver/scanner/run", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"contracts": []any{map[string]any{"conid": 265598, "symbol": "AAPL"}}})
+	})
 	s.Server = httptest.NewServer(mux)
 	return s
 }

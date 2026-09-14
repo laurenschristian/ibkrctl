@@ -81,3 +81,27 @@ func TestPathsAndBadYAML(t *testing.T) {
 		t.Fatal("want yaml error")
 	}
 }
+
+func TestAliasResolution(t *testing.T) {
+	c := &Config{Accounts: []AccountAlias{{ID: "U111", Alias: "account-1"}, {ID: "U222", Alias: "account-2"}}}
+	if c.AliasFor("U111") != "account-1" || c.AliasFor("U999") != "U999" {
+		t.Fatal("AliasFor")
+	}
+	if c.IDFor("account-2") != "U222" || c.IDFor("U111") != "U111" || c.IDFor("nope") != "nope" {
+		t.Fatal("IDFor")
+	}
+	if c.DefaultAccountID() != "U111" {
+		t.Fatalf("default %s", c.DefaultAccountID())
+	}
+	c.Account = "account-2"
+	if c.DefaultAccountID() != "U222" {
+		t.Fatalf("default with account %s", c.DefaultAccountID())
+	}
+	if c.RedactMap() != nil {
+		t.Fatal("redact off should be nil")
+	}
+	c.Redact = true
+	if c.RedactMap()["U111"] != "account-1" {
+		t.Fatal("RedactMap")
+	}
+}

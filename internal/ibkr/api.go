@@ -203,3 +203,68 @@ func (c *Client) CancelOrder(ctx context.Context, accountID, orderID string) (an
 func (c *Client) OrderStatus(ctx context.Context, orderID string) (any, error) {
 	return c.Raw(ctx, "GET", "iserver/account/order/status/"+url.PathEscape(orderID), nil)
 }
+
+// Ledger returns cash balances by currency for an account.
+func (c *Client) Ledger(ctx context.Context, accountID string) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/"+url.PathEscape(accountID)+"/ledger", nil)
+}
+
+// Allocation returns positions grouped by asset class, sector, and group.
+func (c *Client) Allocation(ctx context.Context, accountID string) (any, error) {
+	return c.Raw(ctx, "GET", "portfolio/"+url.PathEscape(accountID)+"/allocation", nil)
+}
+
+// AccountPnL returns the account-level (not partitioned) PnL for the session.
+func (c *Client) AccountPnL(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "iserver/account/pnl/partitioned", nil)
+}
+
+// History returns historical bars for a contract. period e.g. "1y", "6m", "5d";
+// bar e.g. "1d", "1h", "5min". outsideRth includes pre/post market.
+func (c *Client) History(ctx context.Context, conid, period, bar string, outsideRth bool) (any, error) {
+	q := url.Values{}
+	q.Set("conid", conid)
+	q.Set("period", period)
+	q.Set("bar", bar)
+	if outsideRth {
+		q.Set("outsideRth", "true")
+	}
+	return c.Raw(ctx, "GET", "iserver/marketdata/history?"+q.Encode(), nil)
+}
+
+// Trades returns executions from the current and prior six days.
+func (c *Client) Trades(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "iserver/account/trades", nil)
+}
+
+// SecdefByConid returns contract detail for one or more conids.
+func (c *Client) SecdefByConid(ctx context.Context, conids []string) (any, error) {
+	q := url.Values{}
+	q.Set("conids", strings.Join(conids, ","))
+	return c.Raw(ctx, "GET", "trsrv/secdef?"+q.Encode(), nil)
+}
+
+// ScannerParams returns the market-scanner parameter catalog.
+func (c *Client) ScannerParams(ctx context.Context) (any, error) {
+	return c.Raw(ctx, "GET", "iserver/scanner/params", nil)
+}
+
+// RunScanner runs a market scanner. body is the scanner request (instrument,
+// type, location, filter).
+func (c *Client) RunScanner(ctx context.Context, body map[string]any) (any, error) {
+	return c.Raw(ctx, "POST", "iserver/scanner/run", body)
+}
+
+// Fundamentals returns a fundamentals ratios snapshot for a contract, using the
+// market-data snapshot fields that carry ratio data.
+func (c *Client) Fundamentals(ctx context.Context, conid string) (any, error) {
+	// 7051 = company name, 7289 = market cap, 7290 = P/E, 7291 = EPS, 7293 = 52w high,
+	// 7294 = 52w low, 7295 = open, 7296 = close, 7286 = dividend amount, 7287 = dividend yield.
+	fields := []string{"55", "7051", "7289", "7290", "7291", "7287", "7293", "7294"}
+	return c.Snapshot(ctx, []string{conid}, fields)
+}
+
+// MarketDataUnsubscribe releases the market-data line for a conid.
+func (c *Client) MarketDataUnsubscribe(ctx context.Context, conid string) error {
+	return c.Post(ctx, "iserver/marketdata/"+url.PathEscape(conid)+"/unsubscribe", nil, nil)
+}

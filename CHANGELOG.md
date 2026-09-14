@@ -18,3 +18,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - MCP server with read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`,
   `ibkr_summary`, `ibkr_pnl`, `ibkr_orders`, `ibkr_quote`, `ibkr_chain`, `ibkr_raw`.
   Order placement stays CLI-only.
+- Market and research data: `summary`, `ledger`, `allocation`, `trades`,
+  `search`, `info`, `history`, `fundamentals`, `scanner`, with matching MCP
+  read tools.
+- Privacy: `account autoname` / `account alias` map real account ids to stable
+  aliases, and `account redact on` strips real account numbers and holder names
+  from every command and MCP tool. The agent only ever sees `account-1`.

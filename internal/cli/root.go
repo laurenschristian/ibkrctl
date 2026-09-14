@@ -66,7 +66,16 @@ func Root() *cobra.Command {
 		positionsCmd(),
 		pnlCmd(),
 		ordersCmd(),
+		summaryCmd(),
+		ledgerCmd(),
+		allocationCmd(),
+		tradesCmd(),
 		quoteCmd(),
+		searchCmd(),
+		infoCmd(),
+		historyCmd(),
+		fundamentalsCmd(),
+		scannerCmd(),
 		chainCmd(),
 		placeCmd(),
 		cancelCmd(),
@@ -80,7 +89,7 @@ func Root() *cobra.Command {
 func emit(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	return enc.Encode(redact(v))
 }
 
 func doctorCmd() *cobra.Command {

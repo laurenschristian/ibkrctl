@@ -170,3 +170,37 @@ func cfgReload(t *testing.T) {
 		t.Fatalf("warmup: %v", err)
 	}
 }
+
+func TestResearchCommands(t *testing.T) {
+	withGateway(t)
+	for _, c := range [][]string{
+		{"summary"}, {"ledger"}, {"allocation"}, {"trades"},
+		{"search", "AAPL"}, {"info", "265598"}, {"history", "265598", "--period", "1m"},
+		{"fundamentals", "265598"}, {"scanner", "--list"}, {"scanner"},
+	} {
+		if out, err := run(t, c...); err != nil {
+			t.Fatalf("%v -> %v\n%s", c, err, out)
+		}
+	}
+}
+
+func TestAccountAliasAndRedact(t *testing.T) {
+	s := withGateway(t)
+	_ = s
+	cfgPath := t.TempDir() + "/c.yaml"
+	t.Setenv("IBKR_CONFIG", cfgPath)
+	if _, err := run(t, "account", "alias", "U1234567", "main"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "account", "redact", "on"); err != nil {
+		t.Fatal(err)
+	}
+	// With redaction on, positions should show the alias, not the real id.
+	out, err := run(t, "positions", "--account", "main")
+	if err != nil || strings.Contains(out, "U1234567") || !strings.Contains(out, "main") {
+		t.Fatalf("redaction not applied: %v\n%s", err, out)
+	}
+	if _, err := run(t, "account", "redact", "off"); err != nil {
+		t.Fatal(err)
+	}
+}

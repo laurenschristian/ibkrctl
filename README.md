@@ -14,9 +14,17 @@ ibkrctl account                    # brokerage accounts
 ibkrctl positions                  # positions for the default account
 ibkrctl pnl                        # live profit and loss
 ibkrctl orders                     # live orders
+ibkrctl summary                    # net liquidation, buying power
+ibkrctl ledger                     # cash by currency
+ibkrctl allocation                 # value by asset class / sector
+ibkrctl trades                     # executions, last 7 days
+ibkrctl search NVDA                # resolve a ticker to a conid
 ibkrctl quote 265598               # market-data snapshot by conid
+ibkrctl history 265598 --period 1y --bar 1d
+ibkrctl fundamentals 265598        # market cap, P/E, EPS, yield
 ibkrctl chain AAPL --month JAN27   # option strikes
-ibkrctl place 265598 --side BUY --qty 1 --type MKT --confirm
+ibkrctl scanner --type TOP_PERC_GAIN
+ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --confirm
 ibkrctl cancel <orderId>
 ibkrctl raw iserver/accounts       # any /v1/api path
 ibkrctl mcp                        # MCP server over stdio
@@ -44,6 +52,18 @@ Or `go install github.com/laurenschristian/ibkrctl@latest`, or grab a binary fro
 
 `ibkrctl login --show` runs the browser visibly (useful the first time or to debug field selectors). `ibkrctl login --manual` just opens the page for you to type into. `ibkrctl login --otp <code>` supplies a code non-interactively.
 
+## Privacy: hide your account numbers
+
+Give each account a stable alias and turn on redaction so real account numbers and holder names never appear in output (or reach an AI agent):
+
+```
+ibkrctl account autoname     # assign account-1, account-2, ... to your accounts
+ibkrctl account alias U1234567 main   # or name them yourself
+ibkrctl account redact on
+```
+
+With redaction on, every command and MCP tool shows the alias (`account-1`), and commands accept the alias in place of the real id. The real ids live only in the config file (mode 0600).
+
 ## Configure
 
 Precedence is flags, then environment, then the config file
@@ -64,7 +84,7 @@ ibkrctl gateway uninstall --yes
 
 ## MCP
 
-`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_pnl`, `ibkr_orders`, `ibkr_quote`, `ibkr_chain`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
+`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
 
 ```console
 claude mcp add ibkr -- ibkrctl mcp

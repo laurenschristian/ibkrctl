@@ -27,7 +27,7 @@ func wrap(v any, err error) (*mcp.CallToolResult, rawOut, error) {
 	if err != nil {
 		return nil, rawOut{}, err
 	}
-	return nil, rawOut{Data: v}, nil
+	return nil, rawOut{Data: redact(v)}, nil
 }
 
 // noArgs is a lean empty input type (no required fields).
@@ -47,6 +47,27 @@ type chainArg struct {
 	Conid   string `json:"conid"`
 	SecType string `json:"sectype,omitempty"`
 	Month   string `json:"month"`
+}
+
+type conidArg struct {
+	Conid string `json:"conid"`
+}
+
+type historyArg struct {
+	Conid      string `json:"conid"`
+	Period     string `json:"period,omitempty"`
+	Bar        string `json:"bar,omitempty"`
+	OutsideRth bool   `json:"outsideRth,omitempty"`
+}
+
+type symbolArg struct {
+	Symbol string `json:"symbol"`
+}
+
+type scannerArg struct {
+	Instrument string `json:"instrument,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Location   string `json:"location,omitempty"`
 }
 
 type rawArg struct {
@@ -101,6 +122,66 @@ func mcpServer() *mcp.Server {
 			}
 			return wrap(client.Strikes(ctx, in.Conid, st, in.Month))
 		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_summary", Description: "Account summary: net liquidation, cash, buying power."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(client.Summary(ctx, acct))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_ledger", Description: "Cash balances by currency for an account."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(client.Ledger(ctx, acct))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_allocation", Description: "Positions grouped by asset class, sector, and group."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			return wrap(client.Allocation(ctx, acct))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_trades", Description: "Executions from the last seven days."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Trades(ctx))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_search", Description: "Resolve a symbol to contracts (conid, exchange, type)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in symbolArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.SecdefSearch(ctx, in.Symbol))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_info", Description: "Contract details for a conid."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in conidArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.SecdefByConid(ctx, []string{in.Conid}))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_history", Description: "Historical price bars. period (1d,5d,1m,6m,1y,5y), bar (1min,1h,1d,1w)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in historyArg) (*mcp.CallToolResult, rawOut, error) {
+			period, bar := in.Period, in.Bar
+			if period == "" {
+				period = "1y"
+			}
+			if bar == "" {
+				bar = "1d"
+			}
+			return wrap(client.History(ctx, in.Conid, period, bar, in.OutsideRth))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_fundamentals", Description: "Ratios snapshot: market cap, P/E, EPS, dividend yield, 52w range."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in conidArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.Fundamentals(ctx, in.Conid))
+		})
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_scanner", Description: "Run a market scanner. Omit args for TOP_PERC_GAIN on STK.US.MAJOR."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in scannerArg) (*mcp.CallToolResult, rawOut, error) {
+			body := map[string]any{
+				"instrument": orDefault(in.Instrument, "STK"),
+				"type":       orDefault(in.Type, "TOP_PERC_GAIN"),
+				"location":   orDefault(in.Location, "STK.US.MAJOR"),
+			}
+			return wrap(client.RunScanner(ctx, body))
+		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_raw", Description: "Call any /v1/api path (GET unless method is set). Read-only use recommended."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in rawArg) (*mcp.CallToolResult, rawOut, error) {
 			m := in.Method
@@ -110,4 +191,11 @@ func mcpServer() *mcp.Server {
 			return wrap(client.Raw(ctx, m, in.Path, nil))
 		})
 	return s
+}
+
+func orDefault(v, d string) string {
+	if v == "" {
+		return d
+	}
+	return v
 }

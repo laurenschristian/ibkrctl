@@ -88,3 +88,31 @@ func TestAnswerReplies(t *testing.T) {
 		t.Fatalf("ack changed: %v", out)
 	}
 }
+
+func TestRedactWalk(t *testing.T) {
+	cfg = &config.Config{Redact: true, Accounts: []config.AccountAlias{{ID: "U16472226", Alias: "account-1"}}}
+	in := map[string]any{
+		"acctId":       "U16472226",
+		"upnl":         map[string]any{"U16472226.Core": map[string]any{"dpl": 1.0}},
+		"accountTitle": "Jane Q Public",
+		"list":         []any{"holds U16472226 here"},
+	}
+	out := redact(in).(map[string]any)
+	if out["acctId"] != "account-1" {
+		t.Fatalf("acctId %v", out["acctId"])
+	}
+	if _, ok := out["upnl"].(map[string]any)["account-1.Core"]; !ok {
+		t.Fatalf("nested key not redacted: %v", out["upnl"])
+	}
+	if out["accountTitle"] != "***" {
+		t.Fatalf("title not masked: %v", out["accountTitle"])
+	}
+	if out["list"].([]any)[0] != "holds account-1 here" {
+		t.Fatalf("list not redacted: %v", out["list"])
+	}
+	// Redact off returns unchanged.
+	cfg.Redact = false
+	if redact(in).(map[string]any)["acctId"] != "U16472226" {
+		t.Fatal("redact off should pass through")
+	}
+}

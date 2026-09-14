@@ -125,3 +125,32 @@ func TestErrorMapping(t *testing.T) {
 		t.Fatal("sentinel")
 	}
 }
+
+func TestResearchEndpoints(t *testing.T) {
+	c, _ := newClient(t)
+	ctx := context.Background()
+	if _, err := c.Ledger(ctx, "U1234567"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Allocation(ctx, "U1234567"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.History(ctx, "265598", "1m", "1d", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Trades(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SecdefByConid(ctx, []string{"265598"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ScannerParams(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.RunScanner(ctx, map[string]any{"instrument": "STK", "type": "TOP_PERC_GAIN", "location": "STK.US.MAJOR"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Fundamentals(ctx, "265598"); err != nil {
+		t.Fatal(err)
+	}
+}

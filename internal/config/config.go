@@ -24,7 +24,61 @@ type Config struct {
 	// PasswordCmd prints it (e.g. a macOS Keychain lookup).
 	Username    string `yaml:"username,omitempty"`
 	PasswordCmd string `yaml:"password_cmd,omitempty"`
-	TwoFA       string `yaml:"twofa,omitempty"` // ibkey | card | none
+	TwoFA       string `yaml:"twofa,omitempty"` // ibkey | code | none
+	// Accounts maps real account ids to stable aliases. With Redact on, output
+	// shows the alias and account ids are stripped, so the agent never sees the
+	// real numbers. Commands accept either the alias or the real id.
+	Accounts []AccountAlias `yaml:"accounts,omitempty"`
+	Redact   bool           `yaml:"redact,omitempty"`
+}
+
+type AccountAlias struct {
+	ID    string `yaml:"id"`
+	Alias string `yaml:"alias"`
+}
+
+// AliasFor returns the alias for a real id, or the id unchanged.
+func (c *Config) AliasFor(id string) string {
+	for _, a := range c.Accounts {
+		if a.ID == id {
+			return a.Alias
+		}
+	}
+	return id
+}
+
+// IDFor resolves an alias (or a real id) to the real id.
+func (c *Config) IDFor(aliasOrID string) string {
+	for _, a := range c.Accounts {
+		if a.Alias == aliasOrID {
+			return a.ID
+		}
+	}
+	return aliasOrID
+}
+
+// DefaultAccountID returns the configured default account id: the explicit
+// Account (alias or id) if set, else the first alias entry.
+func (c *Config) DefaultAccountID() string {
+	if c.Account != "" {
+		return c.IDFor(c.Account)
+	}
+	if len(c.Accounts) > 0 {
+		return c.Accounts[0].ID
+	}
+	return ""
+}
+
+// RedactMap returns real-id -> alias for output redaction (empty if Redact off).
+func (c *Config) RedactMap() map[string]string {
+	if !c.Redact {
+		return nil
+	}
+	m := make(map[string]string, len(c.Accounts))
+	for _, a := range c.Accounts {
+		m[a.ID] = a.Alias
+	}
+	return m
 }
 
 const (
