@@ -184,11 +184,19 @@ func notificationsCmd() *cobra.Command {
 
 func fxCmd() *cobra.Command {
 	var source string
+	var pairs bool
 	c := &cobra.Command{
 		Use:   "fx <currency>",
-		Short: "Spot exchange rate (e.g. `fx EUR` for EUR/USD)",
+		Short: "Spot exchange rate (e.g. `fx EUR`); --pairs lists tradable pairs",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if pairs {
+				data, err := client.CurrencyPairs(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return emit(data)
+			}
 			data, err := client.ExchangeRate(cmd.Context(), args[0], source)
 			if err != nil {
 				return err
@@ -197,6 +205,7 @@ func fxCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&source, "source", "USD", "base currency")
+	c.Flags().BoolVar(&pairs, "pairs", false, "list tradable FX pairs for the currency")
 	return c
 }
 

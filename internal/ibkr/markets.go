@@ -113,3 +113,46 @@ func (c *Client) Transactions(ctx context.Context, accountID string, conids []st
 	body := map[string]any{"acctIds": []any{accountID}, "conids": ids, "currency": "USD", "days": days}
 	return c.Raw(ctx, "POST", "pa/transactions", body)
 }
+
+// Performance returns time-weighted returns / NAV history for accounts over a
+// period (1D, 1M, 1Y, YTD, ...). Portfolio Analyst endpoint (POST).
+func (c *Client) Performance(ctx context.Context, accountIDs []string, period string) (any, error) {
+	body := map[string]any{"acctIds": accountIDs, "period": period}
+	return c.Raw(ctx, "POST", "pa/performance", body)
+}
+
+// AllPeriods returns performance across every standard period at once (POST).
+func (c *Client) AllPeriods(ctx context.Context, accountIDs []string) (any, error) {
+	body := map[string]any{"acctIds": accountIDs}
+	return c.Raw(ctx, "POST", "pa/allperiods", body)
+}
+
+// FundamentalsSummary returns the Refinitiv company overview and analyst
+// forecast for a contract (richer than the ratios snapshot).
+func (c *Client) FundamentalsSummary(ctx context.Context, conid string) (any, error) {
+	return c.Raw(ctx, "GET", "iserver/fundamentals/"+url.PathEscape(conid)+"/summary", nil)
+}
+
+// OrdersFiltered returns live/historical orders filtered by status
+// (e.g. Filled, Cancelled, Submitted, Inactive). Empty filters = all live.
+func (c *Client) OrdersFiltered(ctx context.Context, filters string) (any, error) {
+	path := "iserver/account/orders"
+	if filters != "" {
+		path += "?filters=" + url.QueryEscape(filters)
+	}
+	return c.Raw(ctx, "GET", path, nil)
+}
+
+// StocksBySymbol resolves several stock symbols to contracts in one call.
+func (c *Client) StocksBySymbol(ctx context.Context, symbols []string) (any, error) {
+	q := url.Values{}
+	q.Set("symbols", strings.Join(symbols, ","))
+	return c.Raw(ctx, "GET", "trsrv/stocks?"+q.Encode(), nil)
+}
+
+// CurrencyPairs lists tradable FX pairs for a base currency.
+func (c *Client) CurrencyPairs(ctx context.Context, currency string) (any, error) {
+	q := url.Values{}
+	q.Set("currency", currency)
+	return c.Raw(ctx, "GET", "iserver/currency/pairs?"+q.Encode(), nil)
+}

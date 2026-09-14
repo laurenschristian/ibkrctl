@@ -15,22 +15,27 @@ ibkrctl status                     # authenticated / connected
 ibkrctl account                    # brokerage accounts
 ibkrctl positions                  # positions for the default account
 ibkrctl pnl                        # live profit and loss
-ibkrctl orders                     # live orders
+ibkrctl orders                     # live orders; --filter Filled|Cancelled for history
+ibkrctl orders cancel-all --confirm
 ibkrctl summary                    # net liquidation, buying power
 ibkrctl ledger                     # cash by currency
 ibkrctl allocation                 # value by asset class / sector
 ibkrctl review                     # one-shot snapshot: summary + positions + allocation + P&L
+ibkrctl review --all               # every account at once
+ibkrctl performance --period 1Y    # time-weighted returns / NAV (Portfolio Analyst)
 ibkrctl trades                     # executions, last 7 days
 ibkrctl search NVDA                # resolve a ticker to a conid
 ibkrctl quote 265598               # market-data snapshot by conid
 ibkrctl history 265598 --period 1y --bar 1d
 ibkrctl fundamentals 265598        # market cap, P/E, EPS, yield
+ibkrctl profile 265598             # company overview + analyst forecast (Refinitiv)
+ibkrctl resolve AAPL MSFT NVDA     # batch symbol -> conid
 ibkrctl chain AAPL --month JAN27   # option strikes
 ibkrctl scanner --type TOP_PERC_GAIN
 ibkrctl watchlists                 # your watchlists; `watchlists get <id> --quotes` merges live prices
 ibkrctl news --num 5               # top market news
 ibkrctl notifications              # IBKR account notifications
-ibkrctl fx EUR                     # spot exchange rate vs USD
+ibkrctl fx EUR                     # spot exchange rate vs USD; `fx USD --pairs` lists pairs
 ibkrctl futures ES NQ CL           # futures contracts by underlying
 ibkrctl alerts                     # price alerts
 ibkrctl transactions 208813719 --days 30
@@ -39,6 +44,8 @@ ibkrctl place 265598 --side BUY --qty 1 --type LMT --price 190 --confirm
 ibkrctl place 265598 --side BUY --qty 1 --price 190 --bracket --take-profit 210 --stop 175 --confirm
 ibkrctl presets add scalp --side BUY --qty 10 --take-profit-pct 0.05 --stop-loss-pct 0.03
 ibkrctl place 265598 --preset scalp --price 190   # preset-priced bracket
+ibkrctl place 265598 --close --confirm            # flatten the current position
+ibkrctl place 265598 --side SELL --qty 10 --type TRAIL --trailing-amt 2 --confirm
 ibkrctl modify <orderId> --price 195 --confirm
 ibkrctl cancel <orderId>
 ibkrctl rules 265598               # valid order types, increments
@@ -101,7 +108,7 @@ ibkrctl gateway uninstall --yes
 
 ## MCP
 
-`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_review`, `ibkr_watchlists`, `ibkr_watchlist` (set `quotes=true` to merge live prices), `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
+`ibkrctl mcp` exposes read tools: `ibkr_status`, `ibkr_accounts`, `ibkr_positions`, `ibkr_summary`, `ibkr_ledger`, `ibkr_allocation`, `ibkr_pnl`, `ibkr_orders`, `ibkr_trades`, `ibkr_quote`, `ibkr_search`, `ibkr_info`, `ibkr_history`, `ibkr_fundamentals`, `ibkr_chain`, `ibkr_scanner`, `ibkr_review`, `ibkr_performance`, `ibkr_profile`, `ibkr_resolve`, `ibkr_currency_pairs`, `ibkr_watchlists`, `ibkr_watchlist` (set `quotes=true` to merge live prices), `ibkr_news`, `ibkr_notifications`, `ibkr_fx`, `ibkr_futures`, `ibkr_alerts`, `ibkr_rules`, `ibkr_position`, `ibkr_preview`, and `ibkr_raw`. Order placement and cancellation are deliberately CLI-only (they require `--confirm`).
 
 ```console
 claude mcp add ibkr -- ibkrctl mcp

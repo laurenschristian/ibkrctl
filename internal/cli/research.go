@@ -203,3 +203,67 @@ func parseScanFilter(s string) []map[string]any {
 	}
 	return out
 }
+
+func performanceCmd() *cobra.Command {
+	var account, period string
+	var allPeriods bool
+	c := &cobra.Command{
+		Use:   "performance",
+		Short: "Time-weighted returns / NAV history (Portfolio Analyst)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			acct, err := resolveAccount(ctx, account)
+			if err != nil {
+				return err
+			}
+			if allPeriods {
+				data, err := client.AllPeriods(ctx, []string{acct})
+				if err != nil {
+					return err
+				}
+				return emit(data)
+			}
+			data, err := client.Performance(ctx, []string{acct}, period)
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	c.Flags().StringVar(&account, "account", "", "account alias or id")
+	c.Flags().StringVar(&period, "period", "1Y", "period: 1D, 1M, 1Y, YTD")
+	c.Flags().BoolVar(&allPeriods, "all-periods", false, "return every standard period at once")
+	return c
+}
+
+func profileCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "profile <conid>",
+		Short: "Company overview and analyst forecast (Refinitiv)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := client.FundamentalsSummary(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	return c
+}
+
+func resolveCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "resolve <symbol> [symbol...]",
+		Short: "Resolve several stock symbols to contracts in one call",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := client.StocksBySymbol(cmd.Context(), args)
+			if err != nil {
+				return err
+			}
+			return emit(data)
+		},
+	}
+	return c
+}

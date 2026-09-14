@@ -154,3 +154,96 @@ func TestMCPNewTools(t *testing.T) {
 		t.Fatalf("call review: %v %+v", err, res)
 	}
 }
+
+func TestPerformanceAndProfile(t *testing.T) {
+	withGateway(t)
+	for _, c := range [][]string{
+		{"performance"}, {"performance", "--period", "1M"}, {"performance", "--all-periods"},
+		{"profile", "265598"}, {"resolve", "AAPL", "MSFT"},
+		{"orders", "--filter", "Filled"}, {"fx", "USD", "--pairs"},
+	} {
+		if out, err := run(t, c...); err != nil {
+			t.Fatalf("%v -> %v\n%s", c, err, out)
+		}
+	}
+}
+
+func TestClosePosition(t *testing.T) {
+	withGateway(t)
+	// The fake holds a long 100-share position; closing offsets with a SELL.
+	out, err := run(t, "place", "265598", "--close")
+	if err != nil || !strings.Contains(out, "SELL") || !strings.Contains(out, "DRY RUN") {
+		t.Fatalf("close dry %v\n%s", err, out)
+	}
+	out, err = run(t, "place", "265598", "--close", "--confirm")
+	if err != nil || !strings.Contains(out, "order_id") {
+		t.Fatalf("close confirm %v\n%s", err, out)
+	}
+}
+
+func TestOrderTypes(t *testing.T) {
+	withGateway(t)
+	// TRAIL needs a trailing amount.
+	if _, err := run(t, "place", "265598", "--side", "SELL", "--qty", "1", "--type", "TRAIL", "--confirm"); err == nil {
+		t.Fatal("expected TRAIL error without --trailing-amt")
+	}
+	if out, err := run(t, "place", "265598", "--side", "SELL", "--qty", "1", "--type", "TRAIL",
+		"--trailing-amt", "2", "--confirm"); err != nil || !strings.Contains(out, "order_id") {
+		t.Fatalf("trail %v\n%s", err, out)
+	}
+	// STP_LMT needs both prices.
+	if _, err := run(t, "place", "265598", "--side", "BUY", "--qty", "1", "--type", "STP_LMT", "--price", "100", "--confirm"); err == nil {
+		t.Fatal("expected STP_LMT error without --aux-price")
+	}
+	if out, err := run(t, "place", "265598", "--side", "BUY", "--qty", "1", "--type", "STP_LMT",
+		"--price", "100", "--aux-price", "99", "--confirm"); err != nil || !strings.Contains(out, "order_id") {
+		t.Fatalf("stplmt %v\n%s", err, out)
+	}
+}
+
+func TestCancelAllEmpty(t *testing.T) {
+	withGateway(t)
+	out, err := run(t, "orders", "cancel-all")
+	if err != nil || !strings.Contains(out, "no live orders") {
+		t.Fatalf("cancel-all %v\n%s", err, out)
+	}
+}
+
+func TestReviewAll(t *testing.T) {
+	withGateway(t)
+	if out, err := run(t, "review", "--all"); err != nil || !strings.Contains(out, "Account") {
+		t.Fatalf("review all %v\n%s", err, out)
+	}
+}
+
+func TestMCPV3Tools(t *testing.T) {
+	withGateway(t)
+	cfgReload(t)
+	ctx := context.Background()
+	c1, c2 := mcp.NewInMemoryTransports()
+	srv := mcpServer()
+	go func() { _ = srv.Run(ctx, c1) }()
+	cl := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	sess, err := cl.Connect(ctx, c2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sess.Close() }()
+	tools, err := sess.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, tl := range tools.Tools {
+		names[tl.Name] = true
+	}
+	for _, want := range []string{"ibkr_performance", "ibkr_profile", "ibkr_resolve", "ibkr_currency_pairs"} {
+		if !names[want] {
+			t.Fatalf("missing MCP tool %s", want)
+		}
+	}
+	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: "ibkr_performance", Arguments: map[string]any{"period": "1M"}})
+	if err != nil || res.IsError {
+		t.Fatalf("call performance: %v %+v", err, res)
+	}
+}

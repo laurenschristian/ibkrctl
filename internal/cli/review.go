@@ -10,11 +10,23 @@ import (
 
 func reviewCmd() *cobra.Command {
 	var account string
+	var all bool
 	c := &cobra.Command{
 		Use:   "review",
 		Short: "One-shot portfolio snapshot: summary, positions, allocation, P&L, open orders",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
+			if all {
+				ids, err := realAccountIDs(ctx)
+				if err != nil {
+					return err
+				}
+				reviews := make([]any, 0, len(ids))
+				for _, id := range ids {
+					reviews = append(reviews, portfolioReview(ctx, id))
+				}
+				return show(reviews, renderReviews)
+			}
 			acct, err := resolveAccount(ctx, account)
 			if err != nil {
 				return err
@@ -24,7 +36,44 @@ func reviewCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account alias or id")
+	c.Flags().BoolVar(&all, "all", false, "review every account")
 	return c
+}
+
+// realAccountIDs lists tradable account ids, skipping the "All" pseudo-account.
+func realAccountIDs(ctx context.Context) ([]string, error) {
+	accts, err := client.Accounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, a := range accts {
+		if a.ID == "All" {
+			continue
+		}
+		ids = append(ids, a.ID)
+	}
+	return ids, nil
+}
+
+func renderReviews(v any) (string, bool) {
+	list, ok := asList(v)
+	if !ok {
+		return "", false
+	}
+	var b strings.Builder
+	for i, r := range list {
+		if s, ok := renderReview(r); ok {
+			b.WriteString(s)
+			if i < len(list)-1 {
+				b.WriteString("\n")
+			}
+		}
+	}
+	if b.Len() == 0 {
+		return "", false
+	}
+	return b.String(), true
 }
 
 // portfolioReview gathers the read endpoints an investing decision needs. A

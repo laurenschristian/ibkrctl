@@ -50,17 +50,88 @@ func pnlCmd() *cobra.Command {
 }
 
 func ordersCmd() *cobra.Command {
-	return &cobra.Command{
+	var filter string
+	c := &cobra.Command{
 		Use:   "orders",
-		Short: "List live orders",
+		Short: "List orders (--filter Filled|Cancelled|Submitted|Inactive)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			data, err := client.Orders(cmd.Context())
+			data, err := client.OrdersFiltered(cmd.Context(), filter)
 			if err != nil {
 				return err
 			}
 			return emit(data)
 		},
 	}
+	c.Flags().StringVar(&filter, "filter", "", "order status filter (comma-separated)")
+	c.AddCommand(ordersCancelAllCmd())
+	return c
+}
+
+func ordersCancelAllCmd() *cobra.Command {
+	var account string
+	var confirm bool
+	c := &cobra.Command{
+		Use:   "cancel-all",
+		Short: "Cancel every live order (requires --confirm)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			acct, err := resolveAccount(ctx, account)
+			if err != nil {
+				return err
+			}
+			ids := liveOrderIDs(ctx)
+			if len(ids) == 0 {
+				fmt.Println("no live orders")
+				return nil
+			}
+			if !confirm {
+				fmt.Printf("DRY RUN cancel-all (pass --confirm): would cancel %d order(s):\n", len(ids))
+				return emit(ids)
+			}
+			results := map[string]any{}
+			for _, id := range ids {
+				if data, err := client.CancelOrder(ctx, acct, id); err != nil {
+					results[id] = map[string]any{"error": err.Error()}
+				} else {
+					results[id] = data
+				}
+			}
+			return emit(results)
+		},
+	}
+	c.Flags().StringVar(&account, "account", "", "account alias or id")
+	c.Flags().BoolVar(&confirm, "confirm", false, "actually cancel")
+	return c
+}
+
+// liveOrderIDs pulls order ids from the live orders payload.
+func liveOrderIDs(ctx context.Context) []string {
+	data, err := client.Orders(ctx)
+	if err != nil {
+		return nil
+	}
+	m, ok := data.(map[string]any)
+	if !ok {
+		return nil
+	}
+	list, ok := m["orders"].([]any)
+	if !ok {
+		return nil
+	}
+	var ids []string
+	for _, o := range list {
+		om, ok := o.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch v := om["orderId"].(type) {
+		case string:
+			ids = append(ids, v)
+		case float64:
+			ids = append(ids, strconv.FormatInt(int64(v), 10))
+		}
+	}
+	return ids
 }
 
 func quoteCmd() *cobra.Command {
@@ -145,10 +216,10 @@ func firstConid(v any) (string, bool) {
 }
 
 func placeCmd() *cobra.Command {
-	var account, side, orderType, tif, preset string
+	var account, side, orderType, tif, preset, trailingType string
 	var qty float64
-	var price, takeProfit, stop float64
-	var confirm, preview, bracket bool
+	var price, takeProfit, stop, auxPrice, trailingAmt float64
+	var confirm, preview, bracket, closePos bool
 	c := &cobra.Command{
 		Use:   "place <conid>",
 		Short: "Place an order (requires --confirm to actually submit)",
@@ -165,6 +236,13 @@ func placeCmd() *cobra.Command {
 			conid, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("conid must be numeric: %w", err)
+			}
+			if closePos {
+				cs, cq, err := closingOrder(ctx, acct, args[0])
+				if err != nil {
+					return err
+				}
+				side, qty, orderType = cs, cq, "MKT"
 			}
 			// A preset fills unset fields and can imply a bracket via pct offsets.
 			if preset != "" {
@@ -208,11 +286,35 @@ func placeCmd() *cobra.Command {
 				"orderType": strings.ToUpper(orderType),
 				"tif":       strings.ToUpper(tif),
 			}
-			if strings.EqualFold(orderType, "LMT") {
+			switch strings.ToUpper(orderType) {
+			case "LMT":
 				if price <= 0 {
 					return errors.New("--price is required for a LMT order")
 				}
 				order["price"] = price
+			case "STP":
+				if price <= 0 {
+					return errors.New("--price (stop trigger) is required for a STP order")
+				}
+				order["price"] = price
+			case "STP_LMT", "STOP_LIMIT":
+				if price <= 0 || auxPrice <= 0 {
+					return errors.New("STP_LMT needs --price (limit) and --aux-price (stop trigger)")
+				}
+				order["orderType"] = "STOP_LIMIT"
+				order["price"] = price
+				order["auxPrice"] = auxPrice
+			case "TRAIL", "TRAILING_STOP":
+				if trailingAmt <= 0 {
+					return errors.New("TRAIL needs --trailing-amt")
+				}
+				order["orderType"] = "TRAIL"
+				order["trailingAmt"] = trailingAmt
+				tt := strings.ToLower(trailingType)
+				if tt == "" {
+					tt = "amt"
+				}
+				order["trailingType"] = tt
 			}
 			if preview {
 				return show(mustWhatIf(ctx, acct, order), renderWhatIf)
@@ -246,6 +348,10 @@ func placeCmd() *cobra.Command {
 	c.Flags().Float64Var(&stop, "stop", 0, "bracket stop price")
 	c.Flags().StringVar(&preset, "preset", "", "apply a saved preset (see `ibkrctl presets`)")
 	c.Flags().BoolVar(&preview, "preview", false, "preview margin/commission/impact (whatif) without submitting")
+	c.Flags().Float64Var(&auxPrice, "aux-price", 0, "stop trigger for STP_LMT")
+	c.Flags().Float64Var(&trailingAmt, "trailing-amt", 0, "trailing distance for a TRAIL order")
+	c.Flags().StringVar(&trailingType, "trailing-type", "amt", "trailing unit: amt or %")
+	c.Flags().BoolVar(&closePos, "close", false, "close the current position in this contract (MKT offset)")
 	c.Flags().BoolVar(&confirm, "confirm", false, "actually submit the order")
 	return c
 }
@@ -311,6 +417,31 @@ func placeBracket(ctx context.Context, cmd *cobra.Command, acct string, entry ma
 		return err
 	}
 	return emit(data)
+}
+
+// closingOrder reads the current position and returns the offsetting side and
+// quantity to flatten it.
+func closingOrder(ctx context.Context, acct, conid string) (string, float64, error) {
+	data, err := client.Position(ctx, acct, conid)
+	if err != nil {
+		return "", 0, err
+	}
+	rows, ok := data.([]any)
+	if !ok || len(rows) == 0 {
+		return "", 0, fmt.Errorf("no position in conid %s to close", conid)
+	}
+	m, ok := rows[0].(map[string]any)
+	if !ok {
+		return "", 0, fmt.Errorf("unexpected position shape for conid %s", conid)
+	}
+	pos, _ := m["position"].(float64)
+	if pos == 0 {
+		return "", 0, fmt.Errorf("position in conid %s is flat", conid)
+	}
+	if pos > 0 {
+		return "SELL", pos, nil
+	}
+	return "BUY", -pos, nil
 }
 
 // answerReplies confirms the gateway's suppressible order-confirmation prompts.

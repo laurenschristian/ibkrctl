@@ -187,6 +187,28 @@ func New() *Server {
 	mux.HandleFunc(base+"iserver/contract/", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, map[string]any{"con_id": 265598, "company_name": "APPLE INC", "orderTypes": []any{"limit"}})
 	})
+	mux.HandleFunc(base+"pa/performance", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"nav": map[string]any{"data": []any{map[string]any{"navValues": []any{100.0, 101.5}}}}, "cps": map[string]any{"data": []any{}}})
+	})
+	mux.HandleFunc(base+"pa/allperiods", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"1D": 0.5, "1M": 2.1, "1Y": 14.3})
+	})
+	mux.HandleFunc(base+"iserver/fundamentals/", func(w http.ResponseWriter, _ *http.Request) {
+		write(w, map[string]any{"companyName": "APPLE INC", "forecast": map[string]any{"epsTTM": 6.5}})
+	})
+	mux.HandleFunc(base+"trsrv/stocks", func(w http.ResponseWriter, r *http.Request) {
+		out := map[string]any{}
+		for _, sym := range strings.Split(r.URL.Query().Get("symbols"), ",") {
+			if sym == "" {
+				continue
+			}
+			out[sym] = []any{map[string]any{"assetClass": "STK", "contracts": []any{map[string]any{"conid": 265598}}}}
+		}
+		write(w, out)
+	})
+	mux.HandleFunc(base+"iserver/currency/pairs", func(w http.ResponseWriter, r *http.Request) {
+		write(w, map[string]any{r.URL.Query().Get("currency"): []any{map[string]any{"ccyPair": "EUR", "conid": 12087792, "symbol": "USD.EUR"}}})
+	})
 	s.Server = httptest.NewServer(mux)
 	return s
 }

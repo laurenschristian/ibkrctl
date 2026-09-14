@@ -38,6 +38,25 @@ type accountArg struct {
 	Page    int    `json:"page,omitempty"`
 }
 
+type reviewArg struct {
+	Account string `json:"account,omitempty"`
+	All     bool   `json:"all,omitempty"`
+}
+
+type performanceArg struct {
+	Account    string `json:"account,omitempty"`
+	Period     string `json:"period,omitempty"`
+	AllPeriods bool   `json:"allPeriods,omitempty"`
+}
+
+type ordersArg struct {
+	Filter string `json:"filter,omitempty"`
+}
+
+type fxPairsArg struct {
+	Currency string `json:"currency"`
+}
+
 type quoteArg struct {
 	Conids []string `json:"conids"`
 	Fields []string `json:"fields,omitempty"`
@@ -136,9 +155,9 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
 			return wrap(client.PnL(ctx))
 		})
-	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_orders", Description: "List live orders."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
-			return wrap(client.Orders(ctx))
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_orders", Description: "List orders. filter (Filled, Cancelled, Submitted, Inactive) narrows by status."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in ordersArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.OrdersFiltered(ctx, in.Filter))
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_summary", Description: "Account summary / ledger for an account."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
@@ -176,13 +195,55 @@ func mcpServer() *mcp.Server {
 			}
 			return wrap(client.Allocation(ctx, acct))
 		})
-	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_review", Description: "One-shot portfolio snapshot: summary, positions, allocation, session P&L, and open orders for an account."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_review", Description: "One-shot portfolio snapshot: summary, positions, allocation, session P&L, and open orders. Set all=true for every account."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in reviewArg) (*mcp.CallToolResult, rawOut, error) {
+			if in.All {
+				ids, err := realAccountIDs(ctx)
+				if err != nil {
+					return nil, rawOut{}, err
+				}
+				out := make([]any, 0, len(ids))
+				for _, id := range ids {
+					out = append(out, portfolioReview(ctx, id))
+				}
+				return wrap(out, nil)
+			}
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
 				return nil, rawOut{}, err
 			}
 			return wrap(portfolioReview(ctx, acct), nil)
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_performance", Description: "Time-weighted returns / NAV history (Portfolio Analyst). period 1D,1M,1Y,YTD; allPeriods for all at once."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in performanceArg) (*mcp.CallToolResult, rawOut, error) {
+			acct, err := resolveAccount(ctx, in.Account)
+			if err != nil {
+				return nil, rawOut{}, err
+			}
+			if in.AllPeriods {
+				return wrap(client.AllPeriods(ctx, []string{acct}))
+			}
+			period := in.Period
+			if period == "" {
+				period = "1Y"
+			}
+			return wrap(client.Performance(ctx, []string{acct}, period))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_profile", Description: "Company overview and analyst forecast for a conid (Refinitiv)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in conidArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.FundamentalsSummary(ctx, in.Conid))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_resolve", Description: "Resolve several stock symbols to contracts in one call."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in symbolsArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.StocksBySymbol(ctx, in.Symbols))
+		})
+
+	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_currency_pairs", Description: "List tradable FX pairs for a base currency."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in fxPairsArg) (*mcp.CallToolResult, rawOut, error) {
+			return wrap(client.CurrencyPairs(ctx, in.Currency))
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "ibkr_trades", Description: "Executions from the last seven days."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, rawOut, error) {
