@@ -65,3 +65,25 @@ func replaceIDs(s string, m map[string]string) string {
 	}
 	return s
 }
+
+// RedactError rewrites real account ids out of an error message. Errors carry
+// the request path, which embeds the account id, so an error is a leak route
+// that emit()'s redaction never covers.
+func RedactError(err error) error {
+	if err == nil || cfg == nil || !cfg.Redact {
+		return err
+	}
+	msg := replaceIDs(err.Error(), cfg.RedactMap())
+	if msg == err.Error() {
+		return err
+	}
+	return &redactedError{msg: msg, err: err}
+}
+
+type redactedError struct {
+	msg string
+	err error
+}
+
+func (e *redactedError) Error() string { return e.msg }
+func (e *redactedError) Unwrap() error { return e.err }

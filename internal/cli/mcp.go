@@ -32,7 +32,7 @@ type rawOut struct {
 
 func wrap(v any, err error) (*mcp.CallToolResult, rawOut, error) {
 	if err != nil {
-		return nil, rawOut{}, err
+		return nil, rawOut{}, RedactError(err)
 	}
 	return nil, rawOut{Data: redact(v)}, nil
 }
@@ -163,7 +163,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Positions(ctx, acct, in.Page))
 		})
@@ -179,7 +179,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Summary(ctx, acct))
 		})
@@ -199,7 +199,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Ledger(ctx, acct))
 		})
@@ -207,7 +207,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Allocation(ctx, acct))
 		})
@@ -216,7 +216,7 @@ func mcpServer() *mcp.Server {
 			if in.All {
 				ids, err := realAccountIDs(ctx)
 				if err != nil {
-					return nil, rawOut{}, err
+					return nil, rawOut{}, RedactError(err)
 				}
 				out := make([]any, 0, len(ids))
 				for _, id := range ids {
@@ -226,7 +226,7 @@ func mcpServer() *mcp.Server {
 			}
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(portfolioReview(ctx, acct), nil)
 		})
@@ -235,7 +235,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in performanceArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			if in.AllPeriods {
 				return wrap(client.AllPeriods(ctx, []string{acct}))
@@ -281,7 +281,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in flexArg) (*mcp.CallToolResult, rawOut, error) {
 			token, err := cfg.FlexToken()
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			if token == "" {
 				return nil, rawOut{}, errFlexToken
@@ -289,7 +289,7 @@ func mcpServer() *mcp.Server {
 			fc := ibkrNewFlex(token)
 			xmlBytes, err := fc.Statement(ctx, cfg.FlexQueryByName(in.Query), 0, 0)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return nil, rawOut{Data: redactFlex(string(xmlBytes))}, nil
 		})
@@ -337,7 +337,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in watchlistArg) (*mcp.CallToolResult, rawOut, error) {
 			data, err := client.Watchlist(ctx, in.ID)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			if in.Quotes {
 				data = enrichWatchlist(ctx, data)
@@ -368,7 +368,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in accountArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Alerts(ctx, acct))
 		})
@@ -380,7 +380,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in positionArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			return wrap(client.Position(ctx, acct, in.Conid))
 		})
@@ -388,7 +388,7 @@ func mcpServer() *mcp.Server {
 		func(ctx context.Context, _ *mcp.CallToolRequest, in previewArg) (*mcp.CallToolResult, rawOut, error) {
 			acct, err := resolveAccount(ctx, in.Account)
 			if err != nil {
-				return nil, rawOut{}, err
+				return nil, rawOut{}, RedactError(err)
 			}
 			ot := in.OrderType
 			if ot == "" {

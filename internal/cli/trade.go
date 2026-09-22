@@ -529,6 +529,10 @@ func cancelCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&account, "account", "", "account id (default: config or first)")
+	// place and modify both gate on --confirm, so it is reached for here too.
+	// Cancelling is not destructive enough to gate, so it is accepted and ignored.
+	var confirm bool
+	c.Flags().BoolVar(&confirm, "confirm", false, "accepted for symmetry with place/modify; cancel always submits")
 	return c
 }
 
@@ -605,6 +609,79 @@ func positionCmd() *cobra.Command {
 	return c
 }
 
+// liveOrderByID finds an order in the live book by its id. IBKR's modify
+// endpoint is a whole-order replace, so the fields the caller did not change
+// have to be read back off the existing order.
+func liveOrderByID(ctx context.Context, orderID string) (map[string]any, error) {
+	data, err := client.OrdersFiltered(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	m, ok := data.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected orders response")
+	}
+	rows, _ := m["orders"].([]any)
+	for _, r := range rows {
+		om, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		if str(pick(om, "orderId", "order_id")) != orderID {
+			continue
+		}
+		// The unfiltered book keeps terminal orders in the same list. Modifying
+		// one reaches IBKR with quantity 0 (remainingQuantity is 0 once filled)
+		// and comes back as a confusing "Order size 0 is not valid".
+		if st := str(pick(om, "status", "order_status")); terminalOrderStatus(st) {
+			return nil, fmt.Errorf("order %s is %s and cannot be modified", orderID, strings.ToLower(st))
+		}
+		return om, nil
+	}
+	return nil, fmt.Errorf("order %s is not in the live book (already filled, cancelled, or not yours)", orderID)
+}
+
+// terminalOrderStatus reports whether an order has reached a state that can no
+// longer be modified.
+func terminalOrderStatus(status string) bool {
+	switch strings.ToUpper(status) {
+	case "FILLED", "CANCELLED", "CANCELED", "INACTIVE", "REJECTED", "EXPIRED":
+		return true
+	}
+	return false
+}
+
+// apiOrderType maps IBKR's display order type ("Limit", "Stop Limit") back to
+// the code its order endpoints expect.
+func apiOrderType(display string) string {
+	switch strings.ToUpper(strings.ReplaceAll(display, " ", "_")) {
+	case "LIMIT", "LMT":
+		return "LMT"
+	case "MARKET", "MKT":
+		return "MKT"
+	case "STOP", "STP":
+		return "STP"
+	case "STOP_LIMIT", "STPLMT", "STP_LMT":
+		return "STOP_LIMIT"
+	case "TRAILING_STOP", "TRAIL":
+		return "TRAIL"
+	case "MIDPRICE":
+		return "MIDPRICE"
+	default:
+		return strings.ToUpper(strings.ReplaceAll(display, " ", "_"))
+	}
+}
+
+// firstNonEmpty returns the first non-empty string.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func modifyCmd() *cobra.Command {
 	var account, side, orderType, tif string
 	var qty, price float64
@@ -619,25 +696,37 @@ func modifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			order := map[string]any{}
-			if side != "" {
-				order["side"] = strings.ToUpper(side)
+			live, err := liveOrderByID(ctx, args[0])
+			if err != nil {
+				return err
 			}
+			// conid is mandatory and is never a flag: it comes off the order.
+			order := map[string]any{"conid": pick(live, "conid")}
+			if cx := str(pick(live, "conidex", "conidEx")); cx != "" {
+				order["conidex"] = cx
+			}
+
+			order["side"] = strings.ToUpper(firstNonEmpty(side, str(pick(live, "side"))))
+			order["orderType"] = apiOrderType(firstNonEmpty(orderType, str(pick(live, "orderType", "origOrderType"))))
+			order["tif"] = strings.ToUpper(firstNonEmpty(tif, str(pick(live, "timeInForce", "tif"))))
+
 			if qty > 0 {
 				order["quantity"] = qty
-			}
-			if orderType != "" {
-				order["orderType"] = strings.ToUpper(orderType)
+			} else if n, ok := num(pick(live, "remainingQuantity", "totalSize")); ok && n > 0 {
+				order["quantity"] = n
 			}
 			if price > 0 {
 				order["price"] = price
+			} else if n, ok := num(pick(live, "price")); ok && n > 0 {
+				order["price"] = n
 			}
-			if tif != "" {
-				order["tif"] = strings.ToUpper(tif)
+			if n, ok := num(pick(live, "auxPrice")); ok && n > 0 {
+				order["auxPrice"] = n
 			}
+
 			if !confirm {
 				fmt.Printf("DRY RUN (pass --confirm to submit):\n")
-				return emit(map[string]any{"account": acct, "orderId": args[0], "changes": order})
+				return emit(map[string]any{"account": acct, "orderId": args[0], "order": order})
 			}
 			data, err := client.ModifyOrder(ctx, acct, args[0], order)
 			if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Watchlists returns all watchlists (system + user).
@@ -140,7 +141,38 @@ func (c *Client) OrdersFiltered(ctx context.Context, filters string) (any, error
 	if filters != "" {
 		path += "?filters=" + url.QueryEscape(filters)
 	}
-	return c.Raw(ctx, "GET", path, nil)
+	out, err := c.Raw(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	// A cold call returns {"orders":[],"snapshot":false}: the gateway has not
+	// built the cache yet. Only a follow-up call sees the real book, so an
+	// unretried first call reports "no orders" while orders are live.
+	if ordersCold(out) {
+		select {
+		case <-ctx.Done():
+			return out, nil
+		case <-time.After(600 * time.Millisecond):
+		}
+		if out2, err := c.Raw(ctx, "GET", path, nil); err == nil {
+			return out2, nil
+		}
+	}
+	return out, nil
+}
+
+// ordersCold reports whether an orders response is an unpopulated cache rather
+// than a genuinely empty book.
+func ordersCold(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	if snap, ok := m["snapshot"].(bool); !ok || snap {
+		return false
+	}
+	orders, ok := m["orders"].([]any)
+	return ok && len(orders) == 0
 }
 
 // StocksBySymbol resolves several stock symbols to contracts in one call.

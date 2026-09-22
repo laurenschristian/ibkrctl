@@ -5,6 +5,29 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-22
+
+### Fixed
+- `modify` could not change a live order at all. The gateway requires `conid` on
+  its modify endpoint, which is a whole-order replace, so every call failed with
+  `HTTP 400: conid or conidex is required`. `modify` now reads the order back off
+  the live book and sends the conid plus the side, order type, TIF, quantity and
+  price the caller did not override. The display order type ("Limit") is mapped
+  back to the API code ("LMT").
+- `modify` on a filled or cancelled order reached IBKR with quantity 0 and came
+  back as `Order size 0 is not valid`. Terminal orders are now refused up front
+  with the order's actual status.
+- Errors leaked the real account number. The request path embeds the account id
+  and errors carry the path, a route `redact` never covered, so `account redact on`
+  did not hold on any failure. Errors are now redacted on both the CLI and MCP
+  surfaces.
+- `orders` reported "no orders" while orders were live. A cold call returns
+  `{"orders":[],"snapshot":false}` because the gateway has not built its cache;
+  only a follow-up call sees the book. `orders` now retries once on that response.
+- `cancel` rejected `--confirm` with `unknown flag`, although `place` and `modify`
+  both require it. `cancel` accepts and ignores it.
+
+
 ## [0.1.0] - 2026-09-14
 
 ### Added

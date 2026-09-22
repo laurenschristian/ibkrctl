@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -114,5 +115,42 @@ func TestRedactWalk(t *testing.T) {
 	cfg.Redact = false
 	if redact(in).(map[string]any)["acctId"] != "U16472226" {
 		t.Fatal("redact off should pass through")
+	}
+}
+
+// An error carries the request path, and the path embeds the account id. That
+// is a leak route emit()'s redaction never sees, so errors get their own pass.
+func TestRedactError(t *testing.T) {
+	prev := cfg
+	t.Cleanup(func() { cfg = prev })
+	cfg = &config.Config{Redact: true, Accounts: []config.AccountAlias{{ID: "U16472226", Alias: "account-1"}}}
+
+	raw := &ibkr.APIError{
+		Status: 400,
+		Path:   "iserver/account/U16472226/order/2065831917",
+		Body:   `{"error":"conid or conidex is required"}`,
+	}
+	got := RedactError(raw)
+	if strings.Contains(got.Error(), "U16472226") {
+		t.Fatalf("real account id survived redaction: %s", got)
+	}
+	if !strings.Contains(got.Error(), "account-1") {
+		t.Fatalf("alias missing: %s", got)
+	}
+	// The body still has to come through, or the error stops being useful.
+	if !strings.Contains(got.Error(), "conid or conidex is required") {
+		t.Fatalf("error detail lost: %s", got)
+	}
+	if !errors.Is(got, error(raw)) {
+		t.Fatal("wrapped error must stay unwrappable")
+	}
+
+	// Redact off is a pass-through, and nil stays nil.
+	cfg.Redact = false
+	if RedactError(raw) != error(raw) {
+		t.Fatal("redact off should return the original error")
+	}
+	if RedactError(nil) != nil {
+		t.Fatal("nil in, nil out")
 	}
 }

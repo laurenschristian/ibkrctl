@@ -18,7 +18,7 @@ func main() {
 	}
 	cli.Version = version
 	if err := cli.Root().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "error:", cli.RedactError(err))
 		os.Exit(1)
 	}
 }

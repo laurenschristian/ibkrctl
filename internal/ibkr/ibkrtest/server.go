@@ -14,7 +14,15 @@ type Server struct {
 	*httptest.Server
 	Authenticated bool
 	LastOrder     map[string]any
+	LastModify    map[string]any
 	Canceled      string
+
+	// Orders is the live book served once the cache is warm. ColdOrderCalls is
+	// how many leading calls return the real gateway's empty, snapshot:false
+	// response before the book appears.
+	Orders         []map[string]any
+	ColdOrderCalls int
+	OrderCalls     int
 }
 
 // New returns a started fake gateway. Close it when done.
@@ -49,7 +57,16 @@ func New() *Server {
 		write(w, map[string]any{"upnl": map[string]any{"U1234567.Core": map[string]any{"dpl": 12.5}}})
 	})
 	mux.HandleFunc(base+"iserver/account/orders", func(w http.ResponseWriter, _ *http.Request) {
-		write(w, map[string]any{"orders": []any{}})
+		s.OrderCalls++
+		if s.OrderCalls <= s.ColdOrderCalls || len(s.Orders) == 0 {
+			write(w, map[string]any{"orders": []any{}, "snapshot": false})
+			return
+		}
+		rows := make([]any, 0, len(s.Orders))
+		for _, o := range s.Orders {
+			rows = append(rows, o)
+		}
+		write(w, map[string]any{"orders": rows, "snapshot": true})
 	})
 	mux.HandleFunc(base+"iserver/marketdata/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		ids := r.URL.Query().Get("conids")
@@ -104,6 +121,9 @@ func New() *Server {
 				"warn":    "",
 			})
 		case strings.Contains(p, "/order/") && r.Method == http.MethodPost:
+			var mod map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&mod)
+			s.LastModify = mod
 			write(w, []any{map[string]any{"order_id": "888", "order_status": "Submitted"}})
 		case strings.HasSuffix(p, "/orders") && r.Method == http.MethodPost:
 			var body struct {

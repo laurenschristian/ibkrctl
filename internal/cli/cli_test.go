@@ -219,7 +219,13 @@ func TestMarketsCommands(t *testing.T) {
 }
 
 func TestOrderToolsCommands(t *testing.T) {
-	withGateway(t)
+	s := withGateway(t)
+	// modify reads the order back off the live book, so the book needs it.
+	s.Orders = []map[string]any{{
+		"orderId": "888", "conid": 265598, "ticker": "AAPL", "side": "BUY",
+		"orderType": "Limit", "price": "100.00", "timeInForce": "GTC",
+		"totalSize": 1, "remainingQuantity": 1, "status": "Submitted",
+	}}
 	for _, c := range [][]string{
 		{"rules", "265598"}, {"position", "265598"},
 		{"place", "265598", "--side", "BUY", "--qty", "1", "--type", "LMT", "--price", "100", "--preview"},
