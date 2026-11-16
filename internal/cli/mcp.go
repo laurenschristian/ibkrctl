@@ -7,12 +7,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 
-	"github.com/laurenschristian/ibkrctl/internal/ibkr"
+	"github.com/laurenschristian/ibkrctl/pkg/flex"
 )
 
 var errFlexToken = errors.New("no flex token: run `ibkrctl flex init`")
-
-func ibkrNewFlex(token string) *ibkr.FlexClient { return ibkr.NewFlex(token) }
 
 func mcpCmd() *cobra.Command {
 	return &cobra.Command{
@@ -286,7 +284,7 @@ func mcpServer() *mcp.Server {
 			if token == "" {
 				return nil, rawOut{}, errFlexToken
 			}
-			fc := ibkrNewFlex(token)
+			fc := flex.New(token)
 			xmlBytes, err := fc.Statement(ctx, cfg.FlexQueryByName(in.Query), 0, 0)
 			if err != nil {
 				return nil, rawOut{}, RedactError(err)

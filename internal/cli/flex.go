@@ -11,7 +11,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/laurenschristian/ibkrctl/internal/config"
-	"github.com/laurenschristian/ibkrctl/internal/ibkr"
+	"github.com/laurenschristian/ibkrctl/pkg/flex"
 )
 
 func flexCmd() *cobra.Command {
@@ -33,7 +33,7 @@ func flexCmd() *cobra.Command {
 			if token == "" {
 				return fmt.Errorf("no flex token: run `ibkrctl flex init`")
 			}
-			fc := ibkr.NewFlex(token)
+			fc := flex.New(token)
 			xmlBytes, err := fc.Statement(cmd.Context(), cfg.FlexQueryByName(args[0]),
 				time.Duration(poll)*time.Second, tries)
 			if err != nil {
