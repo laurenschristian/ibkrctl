@@ -1,7 +1,7 @@
 BIN := ibkrctl
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
-GOLANGCI := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+GOLANGCI := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 GOSEC := github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 # G204: token_cmd is run through sh by design (user-supplied command, like adgctl's password_cmd).
 GOSEC_EXCLUDE := G204,G304,G117,G402,G306,G302,G301,G703
