@@ -124,6 +124,21 @@ claude mcp add ibkr -- ibkrctl mcp
 
 Any stdio MCP client (Cursor, Claude Desktop, Zed) works the same: command `ibkrctl`, args `["mcp"]`.
 
+## Flex query setup
+
+Create an Activity Flex Query in Client Portal (Performance & Reports > Flex Queries > Activity Flex Query > +). Format XML, date format `yyyyMMdd`, time format `HHmmss`, date/time separator `;` (ISO dates also parse). Enable these sections and select all fields in each:
+
+| Section | Options | Parsed as |
+| --- | --- | --- |
+| Open Positions | Summary and Lot | `Statement.Positions` (lot rows carry `OpenDateTime`, `HoldingPeriodDateTime`) |
+| Trades | Execution and Closed Lots | `Statement.Trades`, `Statement.ClosedLots` (`Trade.LongTerm()`) |
+| Cash Report | Currency breakout | `Statement.Cash`, `Statement.SettledCash(ccy)` |
+| Cash Transactions | Dividends, Withholding Tax, Broker Interest, Deposits & Withdrawals, Other Fees; Detail | `Statement.CashTxns`, `Statement.Dividends()` |
+| Net Asset Value (NAV) in Base | (Equity Summary in Base) | `Statement.EquitySummary`, `Statement.NAVSeries()` |
+| Change in NAV | | `Statement.ChangeInNAV` |
+
+Period: a daily cron query uses **Last Business Day**. For history, save a second query with **Last 365 Calendar Days** and run it once as a backfill. Add each with `ibkrctl flex query add <name> <query-id>`.
+
 ## Development
 
 ```
@@ -139,7 +154,7 @@ make sec
 - The gateway proxies to `api.ibkr.com` and holds the session, so ibkrctl never sees your password after `login` fills it.
 - The stock gateway `conf.yaml` ships a malformed deny IP that 404s the login page; `gateway install` strips it automatically.
 - `positions`, `summary`, `ledger`, `allocation`, `review`, `trades`, `orders`, and `performance` (NAV sparkline) print human tables by default; add `--json` for the raw payload.
-- `flex` uses the IBKR Flex Web Service (a token, no gateway, no 2FA). Enable it and build a query in Client Portal: Settings > Account Settings > Flex Web Service. Statements come back as XML; account numbers and names are redacted when `redact` is on.
+- `flex` uses the IBKR Flex Web Service (a token, no gateway, no 2FA). Enable it and build a query in Client Portal: Settings > Account Settings > Flex Web Service. Statements come back as XML; account numbers and names are redacted when `redact` is on. See [Flex query setup](#flex-query-setup) for the sections `pkg/flex` parses.
 - `reconnect` revives a brokerage session that dropped while the SSO cookie is still valid; if SSO fully expired, run `login` (2FA).
 - `history` caches bars on disk (12h for daily+, 10min intraday); pass `--refresh` to bypass.
 - Market-data fields are IBKR field ids (`31` last, `55` symbol, `84` bid, `86` ask, `87` volume). Pass `--fields` to `quote` to choose.

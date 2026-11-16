@@ -1,0 +1,35 @@
+<FlexQueryResponse queryName="backfill" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U0000000" fromDate="20261110" toDate="20261113" period="Last365CalendarDays" whenGenerated="20261116;080000">
+<ChangeInNAV accountId="U0000000" currency="USD" fromDate="20261110" toDate="20261113" startingValue="10000" mtm="250.5" realized="120" changeInUnrealized="130.5" depositsWithdrawals="500" dividends="12" withholdingTax="-1.8" changeInDividendAccruals="0" interest="3.25" changeInInterestAccruals="0" commissions="-2.5" otherFees="-1" endingValue="10760.45" twr="2.5021" />
+<EquitySummaryInBase>
+<EquitySummaryByReportDateInBase accountId="U0000000" currency="USD" reportDate="20261113" cash="1500.25" stock="9260.2" options="0" funds="0" total="10760.45" totalLong="10760.45" totalShort="0" />
+<EquitySummaryByReportDateInBase accountId="U0000000" currency="USD" reportDate="20261110" cash="1000" stock="9000" total="10000" />
+<EquitySummaryByReportDateInBase accountId="U0000000" currency="USD" reportDate="2026-11-11" cash="1000" stock="9100" total="10100" />
+<EquitySummaryByReportDateInBase accountId="U0000000" currency="USD" reportDate="" cash="0" stock="0" total="0" />
+</EquitySummaryInBase>
+<CashReport>
+<CashReportCurrency accountId="U0000000" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" endingCash="1500.25" endingSettledCash="1400" />
+<CashReportCurrency accountId="U0000000" currency="USD" levelOfDetail="Currency" endingCash="1500.25" endingSettledCash="1,400.00" />
+</CashReport>
+<CashTransactions>
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" assetCategory="STK" symbol="AAPL" description="AAPL(US0378331005) CASH DIVIDEND USD 0.26 PER SHARE" conid="265598" isin="US0378331005" type="Dividends" amount="12" dateTime="20261112;202000" reportDate="20261112" settleDate="20261112" transactionID="9001" actionID="7001" levelOfDetail="DETAIL" />
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" assetCategory="STK" symbol="AAPL" description="AAPL(US0378331005) CASH DIVIDEND - US TAX" conid="265598" type="Withholding Tax" amount="-1.8" dateTime="20261112;202000" settleDate="20261112" transactionID="9002" levelOfDetail="DETAIL" />
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" assetCategory="STK" symbol="MSFT" description="MSFT PAYMENT IN LIEU OF DIVIDEND" type="Payment In Lieu Of Dividends" amount="0.5" dateTime="2026-11-12 20:20:00" settleDate="2026-11-12" transactionID="9003" levelOfDetail="DETAIL" />
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" description="USD CREDIT INT FOR OCT-2026" type="Broker Interest Received" amount="3.25" dateTime="20261111" settleDate="20261111" transactionID="9004" levelOfDetail="DETAIL" />
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" type="Deposits &amp; Withdrawals" amount="500" dateTime="20261110" settleDate="20261110" transactionID="9005" levelOfDetail="DETAIL" />
+<CashTransaction accountId="U0000000" currency="USD" fxRateToBase="1" description="SNAPSHOT DATA FEE" type="Other Fees" amount="-1" dateTime="20261111" settleDate="20261111" transactionID="9006" levelOfDetail="DETAIL" />
+</CashTransactions>
+<OpenPositions>
+<OpenPosition accountId="U0000000" currency="USD" symbol="AAPL" conid="265598" reportDate="20261113" position="10" positionValue="2305" costBasisMoney="2000" side="Long" levelOfDetail="SUMMARY" />
+<OpenPosition accountId="U0000000" currency="USD" symbol="AAPL" conid="265598" reportDate="20261113" position="6" positionValue="1383" costBasisMoney="1080" side="Long" levelOfDetail="LOT" openDateTime="20240105;093500" holdingPeriodDateTime="20240105;093500" originatingOrderID="401" originatingTransactionID="501" />
+<OpenPosition accountId="U0000000" currency="USD" symbol="AAPL" conid="265598" reportDate="20261113" position="4" positionValue="922" costBasisMoney="920" side="Long" levelOfDetail="LOT" openDateTime="20261001;100000" holdingPeriodDateTime="20261001;100000" originatingOrderID="402" originatingTransactionID="502" />
+</OpenPositions>
+<Trades>
+<Trade accountId="U0000000" currency="USD" assetCategory="STK" symbol="MSFT" conid="272093" tradeID="112" transactionID="223" ibExecID="0002.01" tradeDate="20261112" dateTime="20261112;143000" buySell="SELL" openCloseIndicator="C" quantity="-5" tradePrice="420" proceeds="2100" ibCommission="-1" fifoPnlRealized="120" mtmPnl="15.5" levelOfDetail="EXECUTION" />
+<Lot accountId="U0000000" currency="USD" assetCategory="STK" symbol="MSFT" conid="272093" transactionID="223" tradeDate="20261112" dateTime="20261112;143000" buySell="SELL" openCloseIndicator="C" quantity="3" cost="1080" fifoPnlRealized="180" openDateTime="20240601;100000" holdingPeriodDateTime="20240601;100000" levelOfDetail="CLOSED_LOT" />
+<Lot accountId="U0000000" currency="USD" assetCategory="STK" symbol="MSFT" conid="272093" transactionID="223" tradeDate="20261112" dateTime="20261112;143000" buySell="SELL" openCloseIndicator="C" quantity="2" cost="900" fifoPnlRealized="-60" openDateTime="20260301;100000" holdingPeriodDateTime="20260301;100000" levelOfDetail="CLOSED_LOT" />
+</Trades>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>
