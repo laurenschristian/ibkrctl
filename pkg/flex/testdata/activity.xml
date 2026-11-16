@@ -1,0 +1,17 @@
+<FlexQueryResponse queryName="daily" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U0000000" fromDate="20261113" toDate="20261113" period="LastBusinessDay" whenGenerated="20261116;080000">
+<CashReport>
+<CashReportCurrency accountId="U0000000" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" startingCash="1000" endingCash="1500.25" endingSettledCash="1500.25" deposits="500" withdrawals="0" dividends="1.5" brokerInterest="0" commissions="-1.25" />
+<CashReportCurrency accountId="U0000000" currency="USD" levelOfDetail="Currency" startingCash="1000" endingCash="1500.25" endingSettledCash="" deposits="500" withdrawals="0" dividends="1.5" brokerInterest="0" commissions="-1.25" />
+</CashReport>
+<OpenPositions>
+<OpenPosition accountId="U0000000" currency="USD" fxRateToBase="1" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" listingExchange="NASDAQ" multiplier="1" reportDate="20261113" position="10" markPrice="230.5" positionValue="2305" openPrice="200" costBasisPrice="200" costBasisMoney="2000" percentOfNAV="60.5" fifoPnlUnrealized="305" side="Long" levelOfDetail="SUMMARY" />
+</OpenPositions>
+<Trades>
+<Trade accountId="U0000000" currency="USD" assetCategory="STK" symbol="AAPL" conid="265598" tradeID="111" transactionID="222" ibExecID="0001.01" ibOrderID="333" tradeDate="20261113" dateTime="20261113;100000" exchange="NASDAQ" buySell="BUY" openCloseIndicator="O" quantity="10" tradePrice="200" tradeMoney="2000" proceeds="-2000" ibCommission="-1.25" ibCommissionCurrency="USD" netCash="-2001.25" cost="2001.25" fifoPnlRealized="0" levelOfDetail="EXECUTION" />
+<Order accountId="U0000000" symbol="AAPL" levelOfDetail="ORDER" />
+</Trades>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>
