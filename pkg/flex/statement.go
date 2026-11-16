@@ -40,7 +40,11 @@ type Statement struct {
 	WhenGenerated string               `xml:"whenGenerated,attr"`
 	Positions     []Position           `xml:"OpenPositions>OpenPosition"`
 	Trades        []Trade              `xml:"Trades>Trade"`
+	ClosedLots    []Trade              `xml:"Trades>Lot"`
 	Cash          []CashReportCurrency `xml:"CashReport>CashReportCurrency"`
+	EquitySummary []EquitySummary      `xml:"EquitySummaryInBase>EquitySummaryByReportDateInBase"`
+	ChangeInNAV   *ChangeInNAV         `xml:"ChangeInNAV"`
+	CashTxns      []CashTransaction    `xml:"CashTransactions>CashTransaction"`
 }
 
 // Position is an OpenPositions row. LevelOfDetail is SUMMARY or LOT.
@@ -66,9 +70,15 @@ type Position struct {
 	UnrealizedPnL  Num    `xml:"fifoPnlUnrealized,attr"`
 	Side           string `xml:"side,attr"`
 	LevelOfDetail  string `xml:"levelOfDetail,attr"`
+	// Set on LOT rows only.
+	OpenDateTime          string `xml:"openDateTime,attr"`
+	HoldingPeriodDateTime string `xml:"holdingPeriodDateTime,attr"`
+	OriginatingOrderID    string `xml:"originatingOrderID,attr"`
+	OriginatingTxnID      string `xml:"originatingTransactionID,attr"`
 }
 
-// Trade is a Trades row. LevelOfDetail EXECUTION marks a single fill.
+// Trade is a Trades row. LevelOfDetail EXECUTION marks a single fill. CLOSED_LOT rows
+// (Statement.ClosedLots) are the lots a closing fill consumed, with their OpenDateTime.
 type Trade struct {
 	AccountID        string `xml:"accountId,attr"`
 	Currency         string `xml:"currency,attr"`
@@ -97,6 +107,10 @@ type Trade struct {
 	NetCash          Num    `xml:"netCash,attr"`
 	CostBasis        Num    `xml:"cost,attr"`
 	RealizedPnL      Num    `xml:"fifoPnlRealized,attr"`
+	MTMPnL           Num    `xml:"mtmPnl,attr"`
+	OpenDateTime     string `xml:"openDateTime,attr"`
+	HoldingPeriod    string `xml:"holdingPeriodDateTime,attr"`
+	WhenRealized     string `xml:"whenRealized,attr"`
 	LevelOfDetail    string `xml:"levelOfDetail,attr"`
 	TransactionType  string `xml:"transactionType,attr"`
 	Multiplier       Num    `xml:"multiplier,attr"`
@@ -122,6 +136,76 @@ type CashReportCurrency struct {
 	WithholdingTax     Num    `xml:"withholdingTax,attr"`
 	NetTradesSales     Num    `xml:"netTradesSales,attr"`
 	NetTradesPurchases Num    `xml:"netTradesPurchases,attr"`
+}
+
+// EquitySummary is an EquitySummaryByReportDateInBase row: NAV on ReportDate in base currency.
+type EquitySummary struct {
+	AccountID        string `xml:"accountId,attr"`
+	Currency         string `xml:"currency,attr"`
+	ReportDate       string `xml:"reportDate,attr"`
+	Cash             Num    `xml:"cash,attr"`
+	Stock            Num    `xml:"stock,attr"`
+	Options          Num    `xml:"options,attr"`
+	Bonds            Num    `xml:"bonds,attr"`
+	Funds            Num    `xml:"funds,attr"`
+	InterestAccruals Num    `xml:"interestAccruals,attr"`
+	DividendAccruals Num    `xml:"dividendAccruals,attr"`
+	Total            Num    `xml:"total,attr"`
+	TotalLong        Num    `xml:"totalLong,attr"`
+	TotalShort       Num    `xml:"totalShort,attr"`
+}
+
+// ChangeInNAV is the period NAV bridge in base currency. TWR is a percent.
+type ChangeInNAV struct {
+	AccountID           string `xml:"accountId,attr"`
+	Currency            string `xml:"currency,attr"`
+	FromDate            string `xml:"fromDate,attr"`
+	ToDate              string `xml:"toDate,attr"`
+	StartingValue       Num    `xml:"startingValue,attr"`
+	MTM                 Num    `xml:"mtm,attr"`
+	Realized            Num    `xml:"realized,attr"`
+	ChangeInUnrealized  Num    `xml:"changeInUnrealized,attr"`
+	DepositsWithdrawals Num    `xml:"depositsWithdrawals,attr"`
+	Dividends           Num    `xml:"dividends,attr"`
+	WithholdingTax      Num    `xml:"withholdingTax,attr"`
+	ChangeInDivAccruals Num    `xml:"changeInDividendAccruals,attr"`
+	Interest            Num    `xml:"interest,attr"`
+	ChangeInIntAccruals Num    `xml:"changeInInterestAccruals,attr"`
+	Commissions         Num    `xml:"commissions,attr"`
+	OtherFees           Num    `xml:"otherFees,attr"`
+	EndingValue         Num    `xml:"endingValue,attr"`
+	TWR                 Num    `xml:"twr,attr"`
+}
+
+// CashTransaction.Type values as IBKR spells them.
+const (
+	CashDividends          = "Dividends"
+	CashPaymentInLieu      = "Payment In Lieu Of Dividends"
+	CashWithholdingTax     = "Withholding Tax"
+	CashInterestPaid       = "Broker Interest Paid"
+	CashInterestReceived   = "Broker Interest Received"
+	CashDepositsWithdrawal = "Deposits & Withdrawals"
+	CashOtherFees          = "Other Fees"
+)
+
+// CashTransaction is a CashTransactions row (dividends, withholding, interest, deposits, fees).
+type CashTransaction struct {
+	AccountID     string `xml:"accountId,attr"`
+	Currency      string `xml:"currency,attr"`
+	FXRateToBase  Num    `xml:"fxRateToBase,attr"`
+	AssetCategory string `xml:"assetCategory,attr"`
+	Symbol        string `xml:"symbol,attr"`
+	Description   string `xml:"description,attr"`
+	Conid         string `xml:"conid,attr"`
+	ISIN          string `xml:"isin,attr"`
+	Type          string `xml:"type,attr"`
+	Amount        Num    `xml:"amount,attr"`
+	DateTime      string `xml:"dateTime,attr"`
+	ReportDate    string `xml:"reportDate,attr"`
+	SettleDate    string `xml:"settleDate,attr"`
+	TransactionID string `xml:"transactionID,attr"`
+	ActionID      string `xml:"actionID,attr"`
+	LevelOfDetail string `xml:"levelOfDetail,attr"`
 }
 
 // Parse decodes a FlexQueryResponse document. A FlexStatementResponse error
